@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/ChaseStoker/tangle/releases/latest">Download for Windows</a>
+  <a href="https://github.com/bizbrf/tangle/releases/latest">Download for Windows</a>
 </p>
 
 ---
@@ -39,7 +39,7 @@ Drop `.xlsx` files into Tangle and instantly see how sheets reference each other
 
 ### Windows (recommended)
 
-Download **[Tangle_0.1.0_x64-setup.exe](https://github.com/ChaseStoker/tangle/releases/latest)** from the latest release and run it. No dependencies required.
+Download the latest installer from the **[releases page](https://github.com/bizbrf/tangle/releases/latest)**. No dependencies required.
 
 An MSI installer is also available on the releases page if you prefer that format.
 
@@ -48,7 +48,7 @@ An MSI installer is also available on the releases page if you prefer that forma
 Requires Node.js 18+.
 
 ```bash
-git clone https://github.com/ChaseStoker/tangle.git
+git clone https://github.com/bizbrf/tangle.git
 cd tangle
 npm install
 npm run dev

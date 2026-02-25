@@ -269,7 +269,7 @@ function SheetNode({ data, selected }: NodeProps<Node<NodeData>>) {
               {data.sheetName}
             </div>
             <div style={{ fontSize: 9, color: C.amber, marginTop: 2, opacity: 0.8, letterSpacing: '0.06em', textTransform: 'uppercase', fontWeight: 600 }}>
-              external file
+              {data.isExternal ? 'external file' : `${data.sheetCount} sheet${data.sheetCount !== 1 ? 's' : ''}`}
             </div>
           </div>
         </div>

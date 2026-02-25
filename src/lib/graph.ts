@@ -8,6 +8,7 @@ export type NodeData = {
   sheetName: string;
   isExternal: boolean;
   isFileNode: boolean;
+  sheetCount?: number;
   outgoingCount: number;
   incomingCount: number;
   workload: SheetWorkload | null;
@@ -355,7 +356,8 @@ function buildOverviewGraph(
         data: {
           label: displayName,
           workbookName: wb.name,
-          sheetName: `${wb.sheets.length} sheet${wb.sheets.length !== 1 ? 's' : ''}`,
+          sheetName: displayName,
+          sheetCount: wb.sheets.length,
           isExternal: false,
           isFileNode: true,
           outgoingCount: 0,

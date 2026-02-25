@@ -1,5 +1,9 @@
 import * as XLSX from 'xlsx';
-import type { WorkbookFile, ParsedSheet, SheetReference, SheetWorkload } from '../types';
+import type { WorkbookFile, ParsedSheet, SheetReference, SheetWorkload, NamedRange } from '../types';
+
+// ── Supported Excel file types ───────────────────────────────────────────────
+export const EXCEL_EXTENSIONS = ['.xlsx', '.xls', '.xlsm', '.xlsb'];
+export const EXCEL_EXT_RE = /\.(xlsx|xls|xlsm|xlsb)$/i;
 
 // Cell-ref portion supports: A1, $A$1, A1:B2, $A$1:$B$2, A:A, 1:10
 const CELL_RE = '(?:\\$?[A-Z]+\\$?\\d+(?::\\$?[A-Z]+\\$?\\d+)?|\\$?[A-Z]+:\\$?[A-Z]+|\\$?\\d+:\\$?\\d+)';
@@ -77,6 +81,54 @@ function buildExternalLinkMap(wb: XLSX.WorkBook): Map<string, string> {
   return map;
 }
 
+// ── Named range extraction ───────────────────────────────────────────────────
+
+function extractNamedRanges(wb: XLSX.WorkBook): NamedRange[] {
+  const names = (wb.Workbook?.Names ?? []) as Array<{
+    Name?: string;
+    Ref?: string;
+    Sheet?: number;
+  }>;
+  const ranges: NamedRange[] = [];
+
+  for (const entry of names) {
+    if (!entry.Name || !entry.Ref) continue;
+    // Skip Excel built-in names like _xlnm.Print_Area
+    if (entry.Name.startsWith('_xlnm.') || entry.Name.startsWith('_xlnm\\')) continue;
+
+    const ref = entry.Ref;
+    // Parse the ref: could be "Sheet1!A1:B10" or "'Sheet Name'!C3" or just "A1:B10"
+    let targetSheet = '';
+    let cells = ref;
+
+    const bangIdx = ref.indexOf('!');
+    if (bangIdx !== -1) {
+      let sheetPart = ref.slice(0, bangIdx);
+      cells = ref.slice(bangIdx + 1);
+      // Strip surrounding quotes from sheet name
+      if (sheetPart.startsWith("'") && sheetPart.endsWith("'")) {
+        sheetPart = sheetPart.slice(1, -1);
+      }
+      targetSheet = sheetPart;
+    }
+
+    const scope: 'workbook' | 'sheet' = entry.Sheet != null ? 'sheet' : 'workbook';
+    const scopeSheet = entry.Sheet != null ? (wb.SheetNames[entry.Sheet] ?? undefined) : undefined;
+
+    ranges.push({
+      name: entry.Name,
+      ref,
+      targetSheet,
+      targetWorkbook: null, // named ranges are local to the workbook
+      cells,
+      scope,
+      scopeSheet,
+    });
+  }
+
+  return ranges;
+}
+
 // ── Reference extraction ────────────────────────────────────────────────────
 
 function extractReferences(
@@ -84,13 +136,24 @@ function extractReferences(
   sheetName: string,
   workbookName: string,
   linkMap: Map<string, string>,
+  namedRangeMap: Map<string, NamedRange>,
 ): { references: SheetReference[]; workload: SheetWorkload } {
   const refs: SheetReference[] = [];
   const workload: SheetWorkload = { totalFormulas: 0, withinSheetRefs: 0, crossSheetRefs: 0, crossFileRefs: 0 };
   if (!sheet) return { references: refs, workload };
 
   const selfSheet = sheetName.toLowerCase();
-  const selfWb = workbookName.toLowerCase().replace(/\.xlsx$/i, '');
+  const selfWb = workbookName.toLowerCase().replace(EXCEL_EXT_RE, '');
+
+  // Build a single combined regex for all named range names: \b(Name1|Name2|...)\b(?!\()
+  // The (?!\() avoids matching function calls like SUM()
+  let namedRangeRe: RegExp | null = null;
+  if (namedRangeMap.size > 0) {
+    const escaped = Array.from(namedRangeMap.values()).map((nr) =>
+      nr.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'),
+    );
+    namedRangeRe = new RegExp(`\\b(${escaped.join('|')})\\b(?!\\()`, 'gi');
+  }
 
   for (const [cellAddr, cell] of Object.entries(sheet)) {
     if (cellAddr.startsWith('!') || !cell || typeof cell !== 'object') continue;
@@ -123,7 +186,7 @@ function extractReferences(
         continue;
       }
       if (targetWorkbook) {
-        const tgtWb = targetWorkbook.toLowerCase().replace(/\.xlsx$/i, '');
+        const tgtWb = targetWorkbook.toLowerCase().replace(EXCEL_EXT_RE, '');
         if (tgtWb === selfWb && tgtSheet === selfSheet) {
           workload.withinSheetRefs++;
           continue;
@@ -141,6 +204,33 @@ function extractReferences(
         });
       }
       byTarget.get(key)!.cells.push(cellRange);
+    }
+
+    // Second pass: detect named range references in this formula
+    if (namedRangeRe) {
+      namedRangeRe.lastIndex = 0;
+      let nrMatch: RegExpExecArray | null;
+      while ((nrMatch = namedRangeRe.exec(formula)) !== null) {
+        const matchedName = nrMatch[0];
+        const nr = namedRangeMap.get(matchedName.toLowerCase());
+        if (!nr) continue;
+        // Skip if the named range targets the same sheet (within-sheet ref)
+        if (!nr.targetWorkbook && nr.targetSheet.toLowerCase() === selfSheet) {
+          workload.withinSheetRefs++;
+          continue;
+        }
+        const key = `NR|${nr.name}|${nr.targetWorkbook ?? ''}|${nr.targetSheet}`;
+        if (!byTarget.has(key)) {
+          byTarget.set(key, {
+            targetWorkbook: nr.targetWorkbook,
+            targetSheet: nr.targetSheet,
+            cells: [nr.cells],
+            formula,
+            sourceCell: cellAddr,
+            namedRangeName: nr.name,
+          });
+        }
+      }
     }
 
     for (const ref of byTarget.values()) {
@@ -167,11 +257,17 @@ export function parseWorkbook(file: File, fileId: string): Promise<WorkbookFile>
         // Use ArrayBuffer + bookFiles to access raw zip entries for external link resolution
         const wb = XLSX.read(data, { type: 'array', cellFormula: true, bookFiles: true });
         const linkMap = buildExternalLinkMap(wb);
+        const namedRanges = extractNamedRanges(wb);
+        // Build lookup map: lowercase name → NamedRange
+        const namedRangeMap = new Map<string, NamedRange>();
+        for (const nr of namedRanges) {
+          namedRangeMap.set(nr.name.toLowerCase(), nr);
+        }
         const sheets: ParsedSheet[] = wb.SheetNames.map((sheetName) => {
-          const { references, workload } = extractReferences(wb.Sheets[sheetName], sheetName, file.name, linkMap);
+          const { references, workload } = extractReferences(wb.Sheets[sheetName], sheetName, file.name, linkMap, namedRangeMap);
           return { workbookName: file.name, sheetName, references, workload };
         });
-        resolve({ id: fileId, name: file.name, sheets });
+        resolve({ id: fileId, name: file.name, sheets, namedRanges });
       } catch (err) {
         reject(err);
       }

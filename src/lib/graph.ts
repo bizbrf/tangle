@@ -1,6 +1,12 @@
 import Dagre from '@dagrejs/dagre';
 import { MarkerType, type Node, type Edge } from '@xyflow/react';
 import type { WorkbookFile, EdgeReference, SheetWorkload } from '../types';
+import { EXCEL_EXT_RE } from './parser';
+
+/** Strip any known Excel extension from a filename */
+export function stripExcelExt(name: string): string {
+  return name.replace(EXCEL_EXT_RE, '');
+}
 
 export type NodeData = {
   label: string;
@@ -8,6 +14,9 @@ export type NodeData = {
   sheetName: string;
   isExternal: boolean;
   isFileNode: boolean;
+  isNamedRange: boolean;
+  namedRangeName?: string;
+  namedRangeRef?: string;
   sheetCount?: number;
   outgoingCount: number;
   incomingCount: number;
@@ -15,7 +24,7 @@ export type NodeData = {
   [key: string]: unknown;
 };
 
-export type EdgeKind = 'internal' | 'cross-file' | 'external';
+export type EdgeKind = 'internal' | 'cross-file' | 'external' | 'named-range';
 
 export type EdgeData = {
   references: EdgeReference[];
@@ -38,13 +47,14 @@ function normWb(name: string): string {
   // Extract from bracket notation if present
   const bracketMatch = n.match(/\[([^\]]+)\]/);
   if (bracketMatch) n = bracketMatch[1];
-  return n.toLowerCase().replace(/\.xlsx$/i, '');
+  return stripExcelExt(n.toLowerCase());
 }
 
 export function buildGraph(
   workbooks: WorkbookFile[],
   layoutMode: LayoutMode = 'graph',
   hiddenFiles: Set<string> = new Set(),
+  showNamedRanges: boolean = false,
 ): { nodes: Node<NodeData>[]; edges: Edge<EdgeData>[] } {
   const visibleWorkbooks = hiddenFiles.size > 0
     ? workbooks.filter((wb) => !hiddenFiles.has(wb.name))
@@ -127,18 +137,45 @@ export function buildGraph(
             ? 'cross-file'
             : 'external';
 
-        // Edge: data SOURCE → data CONSUMER (arrow points toward the consumer)
-        const eid = edgeId(dataSourceId, consumerId);
-        if (!edgesMap.has(eid)) {
-          edgesMap.set(eid, { references: [], refCount: 0, edgeKind });
-        }
-        const ed = edgesMap.get(eid)!;
-        ed.references.push({
+        const edgeRef: EdgeReference = {
           sourceCell: ref.sourceCell,
           targetCells: ref.cells,
           formula: ref.formula,
-        });
-        ed.refCount = ed.references.length;
+        };
+
+        // Named range: when toggle is ON, create intermediate NR node + two edges
+        if (showNamedRanges && ref.namedRangeName) {
+          const nrId = `[nr]${wb.name}::${ref.namedRangeName}`;
+          if (!nodesMap.has(nrId)) {
+            nodesMap.set(nrId, makeNamedRangeNode(nrId, wb.name, ref.namedRangeName, ref.cells.join(', '), ref.targetSheet));
+          }
+          // Edge 1: data source → NR node (named-range kind)
+          const eid1 = edgeId(dataSourceId, nrId);
+          if (!edgesMap.has(eid1)) {
+            edgesMap.set(eid1, { references: [], refCount: 0, edgeKind: 'named-range' });
+          }
+          const ed1 = edgesMap.get(eid1)!;
+          ed1.references.push(edgeRef);
+          ed1.refCount = ed1.references.length;
+
+          // Edge 2: NR node → consumer (named-range kind)
+          const eid2 = edgeId(nrId, consumerId);
+          if (!edgesMap.has(eid2)) {
+            edgesMap.set(eid2, { references: [], refCount: 0, edgeKind: 'named-range' });
+          }
+          const ed2 = edgesMap.get(eid2)!;
+          ed2.references.push(edgeRef);
+          ed2.refCount = ed2.references.length;
+        } else {
+          // Standard direct edge: data SOURCE → data CONSUMER
+          const eid = edgeId(dataSourceId, consumerId);
+          if (!edgesMap.has(eid)) {
+            edgesMap.set(eid, { references: [], refCount: 0, edgeKind });
+          }
+          const ed = edgesMap.get(eid)!;
+          ed.references.push(edgeRef);
+          ed.refCount = ed.references.length;
+        }
       }
     }
   }
@@ -348,7 +385,7 @@ function buildOverviewGraph(
   for (const wb of workbooks) {
     const id = fileNodeId(wb.name);
     if (!nodesMap.has(id)) {
-      const displayName = wb.name.replace(/\.xlsx$/i, '');
+      const displayName = stripExcelExt(wb.name);
       nodesMap.set(id, {
         id,
         type: 'sheet',
@@ -360,6 +397,7 @@ function buildOverviewGraph(
           sheetCount: wb.sheets.length,
           isExternal: false,
           isFileNode: true,
+          isNamedRange: false,
           outgoingCount: 0,
           incomingCount: 0,
           workload: null,
@@ -382,7 +420,7 @@ function buildOverviewGraph(
         const targetFileId = fileNodeId(resolvedTargetWb);
 
         if (!nodesMap.has(targetFileId)) {
-          const displayName = resolvedTargetWb.replace(/\.xlsx$/i, '');
+          const displayName = stripExcelExt(resolvedTargetWb);
           nodesMap.set(targetFileId, {
             id: targetFileId,
             type: 'sheet',
@@ -393,6 +431,7 @@ function buildOverviewGraph(
               sheetName: displayName,
               isExternal: !targetIsUploaded,
               isFileNode: true,
+              isNamedRange: false,
               outgoingCount: 0,
               incomingCount: 0,
               workload: null,
@@ -499,7 +538,7 @@ export function computeClusterNodes(nodes: Node<NodeData>[]): Node<ClusterData>[
       selectable: false,
       draggable: false,
       data: {
-        label: wb.replace(/\.xlsx$/i, ''),
+        label: stripExcelExt(wb),
         workbookName: wb,
         width: w,
         height: h,
@@ -559,16 +598,37 @@ function makeSheetNode(id: string, workbookName: string, sheetName: string, work
     id,
     type: 'sheet',
     position: { x: 0, y: 0 },
-    data: { label: sheetName, workbookName, sheetName, isExternal: false, isFileNode: false, outgoingCount: 0, incomingCount: 0, workload },
+    data: { label: sheetName, workbookName, sheetName, isExternal: false, isFileNode: false, isNamedRange: false, outgoingCount: 0, incomingCount: 0, workload },
   };
 }
 
 function makeFileNode(id: string, workbookName: string): Node<NodeData> {
-  const displayName = workbookName.replace(/\.xlsx$/i, '');
+  const displayName = stripExcelExt(workbookName);
   return {
     id,
     type: 'sheet',
     position: { x: 0, y: 0 },
-    data: { label: displayName, workbookName, sheetName: displayName, isExternal: true, isFileNode: true, outgoingCount: 0, incomingCount: 0, workload: null },
+    data: { label: displayName, workbookName, sheetName: displayName, isExternal: true, isFileNode: true, isNamedRange: false, outgoingCount: 0, incomingCount: 0, workload: null },
+  };
+}
+
+function makeNamedRangeNode(id: string, workbookName: string, name: string, cells: string, targetSheet: string): Node<NodeData> {
+  return {
+    id,
+    type: 'sheet',
+    position: { x: 0, y: 0 },
+    data: {
+      label: name,
+      workbookName,
+      sheetName: name,
+      isExternal: false,
+      isFileNode: false,
+      isNamedRange: true,
+      namedRangeName: name,
+      namedRangeRef: `${targetSheet}!${cells}`,
+      outgoingCount: 0,
+      incomingCount: 0,
+      workload: null,
+    },
   };
 }

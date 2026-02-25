@@ -62,7 +62,7 @@ function getNodeIntersection(node: InternalNode, otherNode: InternalNode): { x: 
 }
 import '@xyflow/react/dist/style.css';
 import type { WorkbookFile, EdgeReference } from '../../types';
-import { buildGraph, computeClusterNodes, type NodeData, type EdgeData, type ClusterData, type EdgeKind, type LayoutMode } from '../../lib/graph';
+import { buildGraph, computeClusterNodes, stripExcelExt, type NodeData, type EdgeData, type ClusterData, type EdgeKind, type LayoutMode } from '../../lib/graph';
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 
@@ -73,6 +73,9 @@ const C = {
   amber: '#f59e0b',
   amberDim: 'rgba(245,158,11,0.15)',
   amberGlow: 'rgba(245,158,11,0.3)',
+  emerald: '#10b981',
+  emeraldDim: 'rgba(16,185,129,0.15)',
+  emeraldGlow: 'rgba(16,185,129,0.3)',
   surface: '#131720',
   surfaceRaised: '#191e28',
   border: '#1e2535',
@@ -91,17 +94,19 @@ function edgeStrokeWidth(refCount: number): number {
 
 // Full accent color per edge kind (used when highlighted)
 function edgeAccentColor(kind: EdgeKind): string {
-  if (kind === 'internal')   return '#e8445a'; // coral-red — same workbook
-  if (kind === 'cross-file') return '#818cf8'; // indigo    — both uploaded
-  return '#f59e0b';                            // amber     — external file
+  if (kind === 'internal')     return '#e8445a'; // coral-red — same workbook
+  if (kind === 'cross-file')   return '#818cf8'; // indigo    — both uploaded
+  if (kind === 'named-range')  return '#10b981'; // emerald   — named range
+  return '#f59e0b';                              // amber     — external file
 }
 
 // Resting color: a subtle tint of the kind's accent, scaled slightly by ref count
 function edgeRestColor(kind: EdgeKind, refCount: number): string {
   const opacity = Math.min(0.2 + Math.log2(refCount + 1) * 0.07, 0.55).toFixed(2);
-  if (kind === 'internal')   return `rgba(232, 68,  90,  ${opacity})`;
-  if (kind === 'cross-file') return `rgba(129, 140, 248, ${opacity})`;
-  return                            `rgba(245, 158, 11,  ${opacity})`;
+  if (kind === 'internal')     return `rgba(232, 68,  90,  ${opacity})`;
+  if (kind === 'cross-file')   return `rgba(129, 140, 248, ${opacity})`;
+  if (kind === 'named-range')  return `rgba(16,  185, 129, ${opacity})`;
+  return                              `rgba(245, 158, 11,  ${opacity})`;
 }
 
 // ── Floating edge helper ───────────────────────────────────────────────────────
@@ -221,6 +226,98 @@ function SheetNode({ data, selected }: NodeProps<Node<NodeData>>) {
     transition: 'box-shadow 0.15s',
   };
 
+  // ── Named range node ──────────────────────────────────────────────────────
+  if (data.isNamedRange) {
+    const nrHandleStyle: React.CSSProperties = {
+      background: C.emerald,
+      width: 8, height: 8,
+      border: `2px solid ${C.surface}`,
+      boxShadow: `0 0 6px ${C.emeraldGlow}`,
+      transition: 'box-shadow 0.15s',
+    };
+    return (
+      <div
+        style={{
+          background: selected ? C.surfaceRaised : hovered ? '#161b25' : C.surface,
+          border: `1.5px solid ${selected ? C.emerald : hovered ? `${C.emerald}88` : `${C.emerald}44`}`,
+          borderRadius: 14,
+          padding: '10px 14px 10px 18px',
+          minWidth: 160,
+          cursor: 'pointer',
+          transition: 'all 0.15s ease',
+          position: 'relative',
+          boxShadow: selected
+            ? `0 0 0 1px ${C.emerald}66, 0 0 24px ${C.emeraldGlow}, 0 8px 32px rgba(0,0,0,0.5)`
+            : hovered
+              ? `0 0 16px ${C.emeraldGlow.replace('0.3', '0.12')}, 0 4px 16px rgba(0,0,0,0.4)`
+              : '0 2px 8px rgba(0,0,0,0.3)',
+        }}
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+      >
+        {/* Left emerald accent bar */}
+        <div style={{
+          position: 'absolute', left: 0, top: 10, bottom: 10,
+          width: 3, borderRadius: '0 3px 3px 0',
+          background: selected ? C.emerald : hovered ? `${C.emerald}99` : `${C.emerald}55`,
+          transition: 'background 0.15s',
+          boxShadow: selected ? `0 0 8px ${C.emeraldGlow}` : 'none',
+        }} />
+
+        <Handle type="target" position={Position.Left} style={nrHandleStyle} />
+
+        {/* Tag icon + name */}
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 7 }}>
+          <svg style={{ flexShrink: 0, marginTop: 2 }} width="14" height="14" fill="none" viewBox="0 0 24 24" stroke={C.emerald} strokeWidth={1.5} opacity={0.75}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 6h.008v.008H6V6z" />
+          </svg>
+          <div style={{ minWidth: 0 }}>
+            <div style={{
+              fontSize: 13, fontWeight: 700,
+              color: selected ? C.textPrimary : hovered ? C.textPrimary : '#cbd5e1',
+              maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+              transition: 'color 0.15s',
+            }}>
+              {data.namedRangeName ?? data.label}
+            </div>
+            <div style={{ fontSize: 9, color: C.emerald, marginTop: 2, opacity: 0.8, letterSpacing: '0.06em', fontWeight: 600 }}>
+              {data.namedRangeRef ?? 'named range'}
+            </div>
+          </div>
+        </div>
+
+        {/* Badges */}
+        <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
+          {data.outgoingCount > 0 && (
+            <span style={{
+              fontSize: 10, fontWeight: 600,
+              color: C.emerald, background: C.emeraldDim,
+              border: `1px solid ${C.emerald}33`,
+              borderRadius: 99, padding: '2px 7px',
+              display: 'inline-flex', alignItems: 'center', gap: 3,
+            }}>
+              ↗ {data.outgoingCount}
+            </span>
+          )}
+          {data.incomingCount > 0 && (
+            <span style={{
+              fontSize: 10, fontWeight: 600,
+              color: C.textSecondary, background: '#1e2535',
+              border: `1px solid #2a3347`,
+              borderRadius: 99, padding: '2px 7px',
+              display: 'inline-flex', alignItems: 'center', gap: 3,
+            }}>
+              ↙ {data.incomingCount}
+            </span>
+          )}
+        </div>
+
+        <Handle type="source" position={Position.Right} style={nrHandleStyle} />
+      </div>
+    );
+  }
+
   // ── External file node (collapsed, not uploaded) ──────────────────────────
   if (data.isFileNode) {
     return (
@@ -331,7 +428,7 @@ function SheetNode({ data, selected }: NodeProps<Node<NodeData>>) {
         textOverflow: 'ellipsis',
         whiteSpace: 'nowrap',
       }}>
-        {data.workbookName.replace(/\.xlsx$/i, '')}
+        {stripExcelExt(data.workbookName)}
       </div>
 
       {/* Sheet name */}
@@ -520,7 +617,7 @@ function DetailPanel({ selectedNodes, selectedEdge, onClose, onFocus, focusNodeI
   // Compute edge kind breakdown for single-node selection (must be before early return)
   const edgeBreakdown = useMemo(() => {
     if (!node) return null;
-    const counts = { internal: 0, 'cross-file': 0, external: 0 };
+    const counts: Record<EdgeKind, number> = { internal: 0, 'cross-file': 0, external: 0, 'named-range': 0 };
     for (const edge of allEdges) {
       if (edge.source === node.id || edge.target === node.id) {
         const kind = (edge.data as EdgeData | undefined)?.edgeKind ?? 'internal';
@@ -569,7 +666,7 @@ function DetailPanel({ selectedNodes, selectedEdge, onClose, onFocus, focusNodeI
         position: 'sticky', top: 0, zIndex: 1,
       }}>
         <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: C.textMuted }}>
-          {isMulti ? `${selectedNodes.length} selected` : node ? 'Sheet' : 'References'}
+          {isMulti ? `${selectedNodes.length} selected` : node ? (node.data.isNamedRange ? 'Named Range' : 'Sheet') : 'References'}
         </span>
         <button
           onClick={onClose}
@@ -600,8 +697,8 @@ function DetailPanel({ selectedNodes, selectedEdge, onClose, onFocus, focusNodeI
               }}>
                 <div style={{
                   width: 6, height: 6, borderRadius: 99, flexShrink: 0,
-                  background: n.data.isExternal ? C.amber : C.accent,
-                  boxShadow: `0 0 6px ${n.data.isExternal ? C.amberGlow : C.accentGlow}`,
+                  background: n.data.isNamedRange ? C.emerald : n.data.isExternal ? C.amber : C.accent,
+                  boxShadow: `0 0 6px ${n.data.isNamedRange ? C.emeraldGlow : n.data.isExternal ? C.amberGlow : C.accentGlow}`,
                 }} />
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontWeight: 600, color: C.textPrimary, fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -622,10 +719,10 @@ function DetailPanel({ selectedNodes, selectedEdge, onClose, onFocus, focusNodeI
             {/* Name card */}
             <div style={{
               background: C.surface,
-              border: `1px solid ${node.data.isExternal ? `${C.amber}44` : `${C.accent}33`}`,
-              borderLeft: `3px solid ${node.data.isExternal ? C.amber : C.accent}`,
+              border: `1px solid ${node.data.isNamedRange ? `${C.emerald}44` : node.data.isExternal ? `${C.amber}44` : `${C.accent}33`}`,
+              borderLeft: `3px solid ${node.data.isNamedRange ? C.emerald : node.data.isExternal ? C.amber : C.accent}`,
               borderRadius: 10, padding: '10px 12px',
-              boxShadow: `0 0 16px ${node.data.isExternal ? C.amberGlow.replace('0.3', '0.1') : C.accentGlow.replace('0.3', '0.1')}`,
+              boxShadow: `0 0 16px ${node.data.isNamedRange ? C.emeraldGlow.replace('0.3', '0.1') : node.data.isExternal ? C.amberGlow.replace('0.3', '0.1') : C.accentGlow.replace('0.3', '0.1')}`,
             }}>
               <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: C.textMuted, marginBottom: 3 }}>
                 {node.data.workbookName}
@@ -635,10 +732,26 @@ function DetailPanel({ selectedNodes, selectedEdge, onClose, onFocus, focusNodeI
               </div>
             </div>
 
+            {/* Named range details */}
+            {node.data.isNamedRange && node.data.namedRangeRef && (
+              <div style={{
+                background: `${C.emerald}0a`, border: `1px solid ${C.emerald}33`,
+                borderRadius: 8, padding: '8px 10px',
+                fontSize: 11, color: C.emerald,
+                display: 'flex', alignItems: 'center', gap: 7,
+              }}>
+                <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 6h.008v.008H6V6z" />
+                </svg>
+                <span style={{ fontFamily: 'monospace', fontSize: 11 }}>{node.data.namedRangeRef}</span>
+              </div>
+            )}
+
             {/* Edge stats */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
               {[
-                { label: 'outgoing', value: node.data.outgoingCount, color: C.accent },
+                { label: 'outgoing', value: node.data.outgoingCount, color: node.data.isNamedRange ? C.emerald : C.accent },
                 { label: 'incoming', value: node.data.incomingCount, color: C.textSecondary },
               ].map(({ label, value, color }) => (
                 <div key={label} style={{
@@ -681,16 +794,17 @@ function DetailPanel({ selectedNodes, selectedEdge, onClose, onFocus, focusNodeI
             )}
 
             {/* Edge kind breakdown */}
-            {edgeBreakdown && (edgeBreakdown.internal > 0 || edgeBreakdown['cross-file'] > 0 || edgeBreakdown.external > 0) && (
+            {edgeBreakdown && (edgeBreakdown.internal > 0 || edgeBreakdown['cross-file'] > 0 || edgeBreakdown.external > 0 || edgeBreakdown['named-range'] > 0) && (
               <>
                 <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: C.textMuted }}>
                   Edges by kind
                 </div>
-                <div style={{ display: 'flex', gap: 8 }}>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                   {([
                     { kind: 'internal' as const, label: 'Internal', color: '#e8445a' },
                     { kind: 'cross-file' as const, label: 'Cross-file', color: '#818cf8' },
                     { kind: 'external' as const, label: 'External', color: '#f59e0b' },
+                    { kind: 'named-range' as const, label: 'Named Range', color: '#10b981' },
                   ] as const).filter(({ kind }) => edgeBreakdown[kind] > 0).map(({ kind, label, color }) => (
                     <div key={kind} style={{
                       display: 'flex', alignItems: 'center', gap: 5,
@@ -862,27 +976,32 @@ function Toolbar({ layoutMode, onLayoutChange }: {
 export type EdgeKindFilterState = Record<EdgeKind, boolean>;
 
 const EDGE_KIND_OPTIONS: { kind: EdgeKind; label: string; color: string }[] = [
-  { kind: 'internal',   label: 'Internal',   color: '#e8445a' },
-  { kind: 'cross-file', label: 'Cross-file', color: '#818cf8' },
-  { kind: 'external',   label: 'External',   color: '#f59e0b' },
+  { kind: 'internal',     label: 'Internal',      color: '#e8445a' },
+  { kind: 'cross-file',   label: 'Cross-file',    color: '#818cf8' },
+  { kind: 'external',     label: 'External',      color: '#f59e0b' },
+  { kind: 'named-range',  label: 'Named Range',   color: '#10b981' },
 ];
 
-function EdgeKindFilterBar({ filter, onFilterChange }: {
+function EdgeKindFilterBar({ filter, onFilterChange, showNamedRanges }: {
   filter: EdgeKindFilterState;
   onFilterChange: (f: EdgeKindFilterState) => void;
+  showNamedRanges?: boolean;
 }) {
   const crossOnly = !filter.internal && filter['cross-file'] && !filter.external;
+  const visibleOptions = showNamedRanges
+    ? EDGE_KIND_OPTIONS
+    : EDGE_KIND_OPTIONS.filter((o) => o.kind !== 'named-range');
 
   function toggleKind(kind: EdgeKind) {
     onFilterChange({ ...filter, [kind]: !filter[kind] });
   }
 
   function setCrossFileOnly() {
-    onFilterChange({ internal: false, 'cross-file': true, external: false });
+    onFilterChange({ internal: false, 'cross-file': true, external: false, 'named-range': false });
   }
 
   function setAll() {
-    onFilterChange({ internal: true, 'cross-file': true, external: true });
+    onFilterChange({ internal: true, 'cross-file': true, external: true, 'named-range': filter['named-range'] });
   }
 
   return (
@@ -895,7 +1014,7 @@ function EdgeKindFilterBar({ filter, onFilterChange }: {
       boxShadow: '0 4px 20px rgba(0,0,0,0.6)',
     }}>
       {/* Per-kind toggles */}
-      {EDGE_KIND_OPTIONS.map(({ kind, label, color }) => {
+      {visibleOptions.map(({ kind, label, color }) => {
         const on = filter[kind];
         return (
           <button
@@ -968,7 +1087,7 @@ function LegendRow({ color, label, isEdge = false }: { color: string; label: str
   );
 }
 
-function Legend() {
+function Legend({ showNamedRanges }: { showNamedRanges?: boolean }) {
   return (
     <div style={{
       position: 'absolute', bottom: 16, left: 16, zIndex: 10,
@@ -983,12 +1102,14 @@ function Legend() {
       <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: C.textMuted, marginBottom: 1 }}>Nodes</div>
       <LegendRow color={C.accent} label="Uploaded sheet" />
       <LegendRow color={C.amber} label="External file" />
+      {showNamedRanges && <LegendRow color={C.emerald} label="Named range" />}
 
       {/* Edges */}
       <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: C.textMuted, marginTop: 4, marginBottom: 1 }}>Edges</div>
       <LegendRow color="#e8445a" label="Same workbook" isEdge />
       <LegendRow color="#818cf8" label="Cross-file" isEdge />
       <LegendRow color="#f59e0b" label="External" isEdge />
+      {showNamedRanges && <LegendRow color="#10b981" label="Named range" isEdge />}
 
       {/* Hint */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, paddingTop: 6, marginTop: 2, borderTop: `1px solid ${C.border}` }}>
@@ -1029,7 +1150,7 @@ function EmptyState() {
           No files loaded
         </p>
         <p style={{ fontSize: 12, color: C.textMuted }}>
-          Upload .xlsx files to visualize references
+          Upload Excel files to visualize references
         </p>
       </div>
     </div>
@@ -1054,16 +1175,20 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
   const [selectedNodeIds, setSelectedNodeIds] = useState<Set<string>>(new Set());
   const [layoutMode, setLayoutMode] = useState<LayoutMode>('graph');
   const [edgeKindFilter, setEdgeKindFilter] = useState<EdgeKindFilterState>({
-    internal: true, 'cross-file': true, external: true,
+    internal: true, 'cross-file': true, external: true, 'named-range': true,
   });
+  const [showNamedRanges, setShowNamedRanges] = useState(false);
   const [focusNodeId, setFocusNodeId] = useState<string | null>(null);
   const [focusDepth, setFocusDepth] = useState(1);
   const [focusDirection, setFocusDirection] = useState<'both' | 'upstream' | 'downstream'>('both');
   const { fitView } = useReactFlow();
   const highlightTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
+  // Check if any loaded workbook has named ranges (for showing the toggle)
+  const hasNamedRanges = useMemo(() => workbooks.some((wb) => wb.namedRanges.length > 0), [workbooks]);
+
   useEffect(() => {
-    const { nodes: n, edges: e } = buildGraph(workbooks, layoutMode, hiddenFiles);
+    const { nodes: n, edges: e } = buildGraph(workbooks, layoutMode, hiddenFiles, showNamedRanges);
     setNodes(n);
     setEdges(e);
     // Reset selection & focus when graph data changes — intentional synchronization
@@ -1072,7 +1197,7 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
     setSelectedEdge(null);
     setSelectedNodeIds(new Set());
     setFocusNodeId(null);
-  }, [workbooks, layoutMode, hiddenFiles, setNodes, setEdges]);
+  }, [workbooks, layoutMode, hiddenFiles, showNamedRanges, setNodes, setEdges]);
 
   // Highlight file: select its nodes and fit view to them
   useEffect(() => {
@@ -1267,16 +1392,44 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
         />
         <Controls />
         <MiniMap
-          nodeColor={(n) => ((n.data as NodeData).isExternal ? C.amber : C.accent)}
+          nodeColor={(n) => {
+            const d = n.data as NodeData;
+            if (d.isNamedRange) return C.emerald;
+            return d.isExternal ? C.amber : C.accent;
+          }}
           maskColor="rgba(11,13,17,0.8)"
           nodeStrokeWidth={0}
         />
       </ReactFlow>
 
       <Toolbar layoutMode={layoutMode} onLayoutChange={setLayoutMode} />
-      <EdgeKindFilterBar filter={edgeKindFilter} onFilterChange={setEdgeKindFilter} />
+      <EdgeKindFilterBar filter={edgeKindFilter} onFilterChange={setEdgeKindFilter} showNamedRanges={showNamedRanges} />
 
-      <Legend />
+      {/* Named Ranges toggle — only shown when workbooks contain named ranges */}
+      {hasNamedRanges && layoutMode !== 'overview' && (
+        <button
+          onClick={() => setShowNamedRanges((v) => !v)}
+          style={{
+            position: 'absolute', top: 92, left: '50%', transform: 'translateX(-50%)',
+            zIndex: 10, display: 'flex', alignItems: 'center', gap: 5, padding: '5px 12px',
+            background: showNamedRanges ? `${C.emerald}22` : '#0d1017',
+            border: `1px solid ${showNamedRanges ? `${C.emerald}55` : C.border}`,
+            borderRadius: 10, cursor: 'pointer',
+            boxShadow: showNamedRanges ? `0 4px 20px rgba(0,0,0,0.6), 0 0 8px ${C.emeraldGlow}` : '0 4px 20px rgba(0,0,0,0.6)',
+            transition: 'all 0.15s',
+          }}
+        >
+          <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke={showNamedRanges ? C.emerald : C.textMuted} strokeWidth={1.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 6h.008v.008H6V6z" />
+          </svg>
+          <span style={{ fontSize: 10, fontWeight: 600, color: showNamedRanges ? C.emerald : C.textMuted }}>
+            Named Ranges
+          </span>
+        </button>
+      )}
+
+      <Legend showNamedRanges={showNamedRanges} />
 
       {/* Focus Mode Controls */}
       {focusNodeId && (

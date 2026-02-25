@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import type { WorkbookFile } from '../../types';
-import { parseWorkbook } from '../../lib/parser';
+import { parseWorkbook, EXCEL_EXTENSIONS } from '../../lib/parser';
 
 interface FilePanelProps {
   workbooks: WorkbookFile[];
@@ -92,16 +92,16 @@ export function FilePanel({ workbooks, onWorkbooksChange, onLocateFile, hiddenFi
   async function handleFiles(files: FileList | null) {
     if (!files || files.length === 0) return;
     setError(null);
-    const xlsxFiles = Array.from(files).filter((f) =>
-      f.name.toLowerCase().endsWith('.xlsx'),
+    const excelFiles = Array.from(files).filter((f) =>
+      EXCEL_EXTENSIONS.some((ext) => f.name.toLowerCase().endsWith(ext)),
     );
-    if (xlsxFiles.length === 0) {
-      setError('Only .xlsx files are supported.');
+    if (excelFiles.length === 0) {
+      setError('Only Excel files (.xlsx, .xls, .xlsm, .xlsb) are supported.');
       return;
     }
     try {
       const parsed = await Promise.all(
-        xlsxFiles.map((f) => parseWorkbook(f, String(nextId++))),
+        excelFiles.map((f) => parseWorkbook(f, String(nextId++))),
       );
       onWorkbooksChange([...workbooks, ...parsed]);
       setExpanded((prev) => {
@@ -180,7 +180,7 @@ export function FilePanel({ workbooks, onWorkbooksChange, onLocateFile, hiddenFi
             <IconUpload />
           </div>
           <p className="text-xs text-center leading-relaxed" style={{ color: '#7b8799' }}>
-            Drop <span style={{ color: '#edf0f5', fontWeight: 600 }}>.xlsx</span> files here
+            Drop <span style={{ color: '#edf0f5', fontWeight: 600 }}>Excel</span> files here
             <br />
             <span style={{ color: dragging ? '#e8445a' : '#e8445a', opacity: dragging ? 1 : 0.7 }}>
               or click to browse
@@ -189,7 +189,7 @@ export function FilePanel({ workbooks, onWorkbooksChange, onLocateFile, hiddenFi
           <input
             ref={inputRef}
             type="file"
-            accept=".xlsx"
+            accept=".xlsx,.xls,.xlsm,.xlsb"
             multiple
             className="hidden"
             onChange={(e) => handleFiles(e.target.files)}

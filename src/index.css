@@ -1,0 +1,91 @@
+@import "tailwindcss";
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  background: #0b0d11;
+}
+
+/* Dark scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #1e2535 transparent;
+}
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #1e2535; border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: #2a3347; }
+
+/* ── React Flow dark overrides ─────────────────────────────── */
+
+.react-flow__renderer,
+.react-flow__pane {
+  background: #0b0d11 !important;
+}
+
+/* Controls */
+.react-flow__controls {
+  background: #131720 !important;
+  border: 1px solid #1e2535 !important;
+  border-radius: 10px !important;
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6) !important;
+}
+.react-flow__controls-button {
+  background: transparent !important;
+  border-bottom: 1px solid #1e2535 !important;
+  fill: #4a5568 !important;
+  width: 28px !important;
+  height: 28px !important;
+  transition: background 0.15s, fill 0.15s !important;
+}
+.react-flow__controls-button:last-child {
+  border-bottom: none !important;
+}
+.react-flow__controls-button:hover {
+  background: #191e28 !important;
+  fill: #edf0f5 !important;
+}
+.react-flow__controls-button svg {
+  fill: inherit !important;
+  max-width: 12px !important;
+}
+
+/* Minimap */
+.react-flow__minimap {
+  background: #131720 !important;
+  border: 1px solid #1e2535 !important;
+  border-radius: 10px !important;
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6) !important;
+}
+
+/* Edge labels */
+.react-flow__edge-text {
+  fill: #e8445a !important;
+  font-size: 10px !important;
+  font-weight: 700 !important;
+}
+.react-flow__edge-textbg {
+  fill: #131720 !important;
+}
+
+/* Lasso selection */
+.react-flow__selection {
+  background: rgba(232, 68, 90, 0.06) !important;
+  border: 1px solid rgba(232, 68, 90, 0.35) !important;
+}
+
+/* Node focus outline */
+.react-flow__node:focus {
+  outline: none !important;
+}
+
+/* Attribution */
+.react-flow__attribution {
+  background: transparent !important;
+  color: #2a3347 !important;
+}
+.react-flow__attribution a {
+  color: #2a3347 !important;
+}

@@ -1,6 +1,6 @@
 # Milestones
 
-## v1.0 Test Infrastructure (Shipped: 2026-02-27)
+## v1.0.2 Test Infrastructure (Shipped: 2026-02-27)
 
 **Phases completed:** 4 phases, 10 plans
 **Files changed:** 69 files, +10,615 / -151 lines

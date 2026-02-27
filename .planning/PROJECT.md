@@ -27,12 +27,12 @@ Users can reliably understand how their Excel workbooks reference each other —
 - ✓ Sheet workload metrics (totalFormulas, withinSheetRefs, crossSheetRefs, crossFileRefs) — existing
 - ✓ Enhanced detail panel with workload grid, edge breakdown, Focus/Hide quick actions — existing
 - ✓ Tauri v2 native desktop wrapper (.exe) — existing
-- ✓ Unit tests for `parser.ts` — reference extraction, named ranges, external link resolution, error handling — v1.0
-- ✓ Unit tests for `graph.ts` — buildGraph(), layout functions, edge classification, named range toggle — v1.0
-- ✓ E2E tests for core upload + graph render flow — v1.0
-- ✓ E2E tests for feature interactions (focus mode, hide/show, layout switching, edge filters) — v1.0
-- ✓ E2E tests for error handling (bad file upload, unsupported format) — v1.0
-- ✓ Test fixtures — 7 `.xlsx` files covering edge cases (circular refs, external refs, named ranges, large workbook) — v1.0
+- ✓ Unit tests for `parser.ts` — reference extraction, named ranges, external link resolution, error handling — v1.0.2
+- ✓ Unit tests for `graph.ts` — buildGraph(), layout functions, edge classification, named range toggle — v1.0.2
+- ✓ E2E tests for core upload + graph render flow — v1.0.2
+- ✓ E2E tests for feature interactions (focus mode, hide/show, layout switching, edge filters) — v1.0.2
+- ✓ E2E tests for error handling (bad file upload, unsupported format) — v1.0.2
+- ✓ Test fixtures — 7 `.xlsx` files covering edge cases (circular refs, external refs, named ranges, large workbook) — v1.0.2
 
 ### Active
 
@@ -84,4 +84,4 @@ Tangle has 10 shipped features and a complete test suite (v1.0). The parser (`sr
 | `data-testid` attributes for E2E targeting | Decoupled from CSS classes and text content — stable selectors | ✓ Good — zero selector breakage across all 17 tests |
 
 ---
-*Last updated: 2026-02-27 after v1.0 milestone*
+*Last updated: 2026-02-27 after v1.0.2 milestone*

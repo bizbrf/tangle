@@ -2,19 +2,19 @@
 
 ## Milestones
 
-- ✅ **v1.0 Test Infrastructure** — Phases 1–4 (shipped 2026-02-27)
+- ✅ **v1.0.2 Test Infrastructure** — Phases 1–4 (shipped 2026-02-27)
 
 ## Phases
 
 <details>
-<summary>✅ v1.0 Test Infrastructure (Phases 1–4) — SHIPPED 2026-02-27</summary>
+<summary>✅ v1.0.2 Test Infrastructure (Phases 1–4) — SHIPPED 2026-02-27</summary>
 
 - [x] Phase 1: Infrastructure (3/3 plans) — completed 2026-02-27
 - [x] Phase 2: Parser Unit Tests (2/2 plans) — completed 2026-02-27
 - [x] Phase 3: Graph Unit Tests (2/2 plans) — completed 2026-02-27
 - [x] Phase 4: E2E Tests (3/3 plans) — completed 2026-02-27
 
-Full details: `.planning/milestones/v1.0-ROADMAP.md`
+Full details: `.planning/milestones/v1.0.2-ROADMAP.md`
 
 </details>
 

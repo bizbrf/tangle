@@ -2,7 +2,7 @@
 
 *A living document updated after each milestone. Lessons feed forward into future planning.*
 
-## Milestone: v1.0 — Test Infrastructure
+## Milestone: v1.0.2 — Test Infrastructure
 
 **Shipped:** 2026-02-27
 **Phases:** 4 | **Plans:** 10 | **Timeline:** 3 days (Feb 25–27)
@@ -48,13 +48,13 @@
 
 | Milestone | Phases | Plans | Key Change |
 |-----------|--------|-------|------------|
-| v1.0 Test Infrastructure | 4 | 10 | First test milestone — established all testing patterns |
+| v1.0.2 Test Infrastructure | 4 | 10 | First test milestone — established all testing patterns |
 
 ### Cumulative Quality
 
 | Milestone | Unit Tests | E2E Tests | Fixtures |
 |-----------|------------|-----------|----------|
-| v1.0 | 43 | 17 | 7 |
+| v1.0.2 | 43 | 17 | 7 |
 
 ### Top Lessons (Verified Across Milestones)
 

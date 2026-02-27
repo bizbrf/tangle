@@ -1,6 +1,6 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.0
+milestone: v1.0.2
 milestone_name: milestone
 status: unknown
 last_updated: "2026-02-27T19:52:15.786Z"

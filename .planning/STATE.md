@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-last_updated: "2026-02-27T10:18:00.949Z"
+last_updated: "2026-02-27T10:47:53.887Z"
 progress:
-  total_phases: 1
+  total_phases: 2
   completed_phases: 1
-  total_plans: 3
-  completed_plans: 3
+  total_plans: 5
+  completed_plans: 4
 ---
 
 # Project State
@@ -18,16 +18,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-02-27)
 
 **Core value:** Users can reliably understand how their Excel workbooks reference each other — the graph must always be correct, even with edge-case or malformed files.
-**Current focus:** Phase 1 — Infrastructure
+**Current focus:** Phase 2 — Parser Unit Tests
 
 ## Current Position
 
-Phase: 1 of 4 (Infrastructure)
-Plan: 3 of TBD in current phase (01-03 complete)
+Phase: 2 of 4 (Parser Unit Tests)
+Plan: 1 of TBD in current phase (02-01 complete)
 Status: In progress
-Last activity: 2026-02-27 — Completed 01-03: Test fixtures and Vitest smoke test
+Last activity: 2026-02-27 — Completed 02-01: Parser unit tests (PARSE-01 through PARSE-08)
 
-Progress: [█░░░░░░░░░] ~10%
+Progress: [██░░░░░░░░] ~20%
 
 ## Performance Metrics
 
@@ -41,9 +41,10 @@ Progress: [█░░░░░░░░░] ~10%
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 01-infrastructure | 2 | 6 min | 3 min |
+| 02-parser-unit-tests | 1 | 2 min | 2 min |
 
 **Recent Trend:**
-- Last 5 plans: 3 min
+- Last 5 plans: 2 min
 - Trend: -
 
 *Updated after each plan completion*
@@ -64,6 +65,9 @@ Recent decisions affecting current work:
 - [Phase 01-infrastructure, Plan 03]: Malformed fixture uses raw Buffer.from() — SheetJS always writes valid xlsx, corrupt bytes must be crafted manually
 - [Phase 01-infrastructure]: webServer.url not webServer.port — url verifies server actually responds; port deprecated in Playwright 1.57+
 - [Phase 01-infrastructure]: Smoke test checks empty state text not .react-flow — ReactFlow conditionally renders only when workbooks loaded
+- [Phase 02-parser-unit-tests]: Add export keyword only to 3 parser functions — no other changes; readFileEntry remains private
+- [Phase 02-parser-unit-tests]: Inline workbooks via XLSX.write/read round-trip for PARSE-03/PARSE-06/07 tests requiring specific formula shapes not in fixture files
+- [Phase 02-parser-unit-tests]: Avoid the word 'annotation' in Vitest test comments — triggers false @vitest-environment module resolution
 
 ### Pending Todos
 
@@ -72,10 +76,10 @@ None yet.
 ### Blockers/Concerns
 
 - [Phase 4]: Must verify FilePanel renders a hidden `<input type="file">` in the DOM before writing E2E upload tests. If only a pure div drop zone exists, the `DataTransfer` workaround (Playwright issue #10667) is required — adds complexity.
-- [Phase 2]: `extractReferences`, `extractNamedRanges`, and `buildExternalLinkMap` must be exported from `parser.ts` before Phase 2 tests can be written. This is the only source code change required in the entire milestone.
+- [Phase 2 — RESOLVED]: `extractReferences`, `extractNamedRanges`, and `buildExternalLinkMap` are now exported from `parser.ts` and fully covered by unit tests.
 
 ## Session Continuity
 
 Last session: 2026-02-27
-Stopped at: Completed 01-infrastructure/01-02-PLAN.md (Playwright E2E setup)
+Stopped at: Completed 02-parser-unit-tests/02-01-PLAN.md (Parser unit tests)
 Resume file: None

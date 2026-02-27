@@ -17,14 +17,14 @@
 
 ### Parser Unit Tests
 
-- [ ] **PARSE-01**: `extractReferences()` is exported from `src/lib/parser.ts` and testable in isolation
-- [ ] **PARSE-02**: Cross-sheet references with unquoted names (`SheetName!A1`) are detected correctly
-- [ ] **PARSE-03**: Cross-sheet references with quoted names (`'Sheet Name'!A1:B2`) are detected correctly
-- [ ] **PARSE-04**: External file references with numeric link indices (`[1]Sheet!A1`) are resolved to actual filenames via `buildExternalLinkMap()`
-- [ ] **PARSE-05**: External file references with bracketed filenames (`[File.xlsx]Sheet!A1`) are detected correctly
-- [ ] **PARSE-06**: Named ranges are detected and distinguished from function calls (e.g., `SUM(...)` is not a named range)
-- [ ] **PARSE-07**: Named range references in formulas do not appear as duplicate edges
-- [ ] **PARSE-08**: Workload metrics (totalFormulas, withinSheetRefs, crossSheetRefs, crossFileRefs) are counted correctly
+- [x] **PARSE-01**: `extractReferences()` is exported from `src/lib/parser.ts` and testable in isolation
+- [x] **PARSE-02**: Cross-sheet references with unquoted names (`SheetName!A1`) are detected correctly
+- [x] **PARSE-03**: Cross-sheet references with quoted names (`'Sheet Name'!A1:B2`) are detected correctly
+- [x] **PARSE-04**: External file references with numeric link indices (`[1]Sheet!A1`) are resolved to actual filenames via `buildExternalLinkMap()`
+- [x] **PARSE-05**: External file references with bracketed filenames (`[File.xlsx]Sheet!A1`) are detected correctly
+- [x] **PARSE-06**: Named ranges are detected and distinguished from function calls (e.g., `SUM(...)` is not a named range)
+- [x] **PARSE-07**: Named range references in formulas do not appear as duplicate edges
+- [x] **PARSE-08**: Workload metrics (totalFormulas, withinSheetRefs, crossSheetRefs, crossFileRefs) are counted correctly
 - [ ] **PARSE-09**: Empty workbooks (no formulas) return empty reference arrays with zero workload metrics
 - [ ] **PARSE-10**: Malformed or corrupt `.xlsx` files are handled gracefully — `parseWorkbook()` rejects with an error, not a crash
 - [ ] **PARSE-11**: Circular references between sheets (A → B → A) do not cause infinite loops or crashes
@@ -101,14 +101,14 @@
 | INFRA-05 | Phase 1 | Complete |
 | INFRA-06 | Phase 1 | Complete |
 | INFRA-07 | Phase 1 | Complete |
-| PARSE-01 | Phase 2 | Pending |
-| PARSE-02 | Phase 2 | Pending |
-| PARSE-03 | Phase 2 | Pending |
-| PARSE-04 | Phase 2 | Pending |
-| PARSE-05 | Phase 2 | Pending |
-| PARSE-06 | Phase 2 | Pending |
-| PARSE-07 | Phase 2 | Pending |
-| PARSE-08 | Phase 2 | Pending |
+| PARSE-01 | Phase 2 | Complete |
+| PARSE-02 | Phase 2 | Complete |
+| PARSE-03 | Phase 2 | Complete |
+| PARSE-04 | Phase 2 | Complete |
+| PARSE-05 | Phase 2 | Complete |
+| PARSE-06 | Phase 2 | Complete |
+| PARSE-07 | Phase 2 | Complete |
+| PARSE-08 | Phase 2 | Complete |
 | PARSE-09 | Phase 2 | Pending |
 | PARSE-10 | Phase 2 | Pending |
 | PARSE-11 | Phase 2 | Pending |

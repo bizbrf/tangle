@@ -80,6 +80,6 @@ Note: Phase 2 and Phase 3 are independent — they can be developed in parallel 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Infrastructure | 3/3 | Complete    | 2026-02-27 |
-| 2. Parser Unit Tests | 0/TBD | Not started | - |
+| 2. Parser Unit Tests | 1/2 | In Progress|  |
 | 3. Graph Unit Tests | 0/TBD | Not started | - |
 | 4. E2E Tests | 0/TBD | Not started | - |

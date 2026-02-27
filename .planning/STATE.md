@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-last_updated: "2026-02-27T11:22:32.800Z"
+last_updated: "2026-02-27T18:24:40Z"
 progress:
   total_phases: 4
-  completed_phases: 3
+  completed_phases: 4
   total_plans: 9
-  completed_plans: 8
+  completed_plans: 9
 ---
 
 # Project State
@@ -22,19 +22,19 @@ See: .planning/PROJECT.md (updated 2026-02-27)
 
 ## Current Position
 
-Phase: 4 of 4 in progress (E2E Tests)
-Plan: 1 of 2 in phase 04 (04-01 complete)
-Status: Phase 4 in progress — test instrumentation done, E2E specs next
-Last activity: 2026-02-27 — Completed 04-01: Test instrumentation (data-testid attributes + fixture)
+Phase: 4 of 4 complete (E2E Tests)
+Plan: 2 of 2 in phase 04 (04-02 complete — ALL PLANS DONE)
+Status: All phases complete — full E2E + unit test coverage delivered
+Last activity: 2026-02-27 — Completed 04-02: E2E helpers module + upload spec (E2E-01 through E2E-04)
 
-Progress: [████████░░] ~88%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 7
+- Total plans completed: 9
 - Average duration: 3 min
-- Total execution time: ~17 min
+- Total execution time: ~20 min
 
 **By Phase:**
 
@@ -43,7 +43,7 @@ Progress: [████████░░] ~88%
 | 01-infrastructure | 2 | 6 min | 3 min |
 | 02-parser-unit-tests | 2 | 3 min | 1.5 min |
 | 03-graph-unit-tests | 2 | 7 min | 3.5 min |
-| 04-e2e-tests | 1/2 | 3 min | 3 min |
+| 04-e2e-tests | 2/2 | 6 min | 3 min |
 
 **Recent Trend:**
 - Last 5 plans: 3 min
@@ -81,6 +81,9 @@ Recent decisions affecting current work:
 - [Phase 04-e2e-tests, Plan 01]: data-testid added inline on existing elements — no wrapper divs, no structural changes
 - [Phase 04-e2e-tests, Plan 01]: Template literal testids (layout-${mode}, edge-filter-${kind}) auto-generate stable selectors from existing map() iterations
 - [Phase 04-e2e-tests, Plan 01]: All 3 SheetNode branches share data-testid="sheet-node" — tests differentiate by content if needed
+- [Phase 04-e2e-tests, Plan 02]: ESM-compatible __dirname via fileURLToPath(import.meta.url) — CommonJS __dirname is undefined in Playwright ESM context
+- [Phase 04-e2e-tests, Plan 02]: waitForNodes() uses .first().waitFor({ state: 'visible' }) — works for any upload regardless of node count
+- [Phase 04-e2e-tests, Plan 02]: toHaveCount(2) on file-list-item for E2E-04 — Playwright auto-retries until count matches
 
 ### Pending Todos
 
@@ -95,5 +98,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-27
-Stopped at: Completed 04-e2e-tests/04-01-PLAN.md (Test instrumentation — data-testid attributes and not-excel.txt fixture)
+Stopped at: Completed 04-e2e-tests/04-02-PLAN.md (E2E helpers module + upload spec — ALL PLANS COMPLETE)
 Resume file: None

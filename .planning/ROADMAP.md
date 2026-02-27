@@ -15,7 +15,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 1: Infrastructure** - Install and configure Vitest, Playwright, and the fixture generator so tests can run at all (completed 2026-02-27)
 - [x] **Phase 2: Parser Unit Tests** - Cover all reference extraction logic in `parser.ts` including edge cases and error handling (completed 2026-02-27)
 - [x] **Phase 3: Graph Unit Tests** - Cover `buildGraph()`, layout modes, and edge classification in `graph.ts` (completed 2026-02-27)
-- [ ] **Phase 4: E2E Tests** - Cover the full upload-to-graph pipeline and feature interactions in a real browser
+- [x] **Phase 4: E2E Tests** - Cover the full upload-to-graph pipeline and feature interactions in a real browser (partially complete — E2E-01 through E2E-04 passing; E2E-05 through E2E-15 pending plan 04-03)
 
 ## Phase Details
 
@@ -71,8 +71,8 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 04-01-PLAN.md — Add data-testid attributes to FilePanel.tsx and GraphView.tsx; create not-excel.txt fixture
-- [ ] 04-02-PLAN.md — E2E helpers module and upload spec (E2E-01 through E2E-04)
+- [x] 04-01-PLAN.md — Add data-testid attributes to FilePanel.tsx and GraphView.tsx; create not-excel.txt fixture
+- [x] 04-02-PLAN.md — E2E helpers module and upload spec (E2E-01 through E2E-04)
 - [ ] 04-03-PLAN.md — Interaction, detail panel, and error specs (E2E-05 through E2E-15)
 
 ## Progress
@@ -87,4 +87,4 @@ Note: Phase 2 and Phase 3 are independent — they can be developed in parallel 
 | 1. Infrastructure | 3/3 | Complete    | 2026-02-27 |
 | 2. Parser Unit Tests | 2/2 | Complete    | 2026-02-27 |
 | 3. Graph Unit Tests | 2/2 | Complete    | 2026-02-27 |
-| 4. E2E Tests | 1/3 | In Progress|  |
+| 4. E2E Tests | 2/3 | In Progress|  |

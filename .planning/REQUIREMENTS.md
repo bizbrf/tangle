@@ -136,10 +136,10 @@
 | E2E-15 | Phase 4 | Pending |
 
 **Coverage:**
-- v1 requirements: 37 total
-- Mapped to phases: 37
+- v1 requirements: 40 total (INFRA: 7, PARSE: 11, GRAPH: 7, E2E: 15)
+- Mapped to phases: 40
 - Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-02-27*
-*Last updated: 2026-02-27 after initial definition*
+*Last updated: 2026-02-27 — traceability confirmed, coverage count corrected to 40*

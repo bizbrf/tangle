@@ -1,0 +1,2 @@
+# Mark generated test fixtures as binary files for clean git diffs
+tests/fixtures/*.xlsx binary

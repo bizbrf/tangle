@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/bizbrf/tangle/releases/latest">Download for Windows</a>
+  <a href="https://github.com/bizbrf/tangle/releases/latest/download/Tangle-Setup.exe">Download for Windows</a>
 </p>
 
 <p align="center">
@@ -45,9 +45,10 @@ Drop `.xlsx` files into Tangle and instantly see how sheets reference each other
 
 ### Windows (recommended)
 
-Download the latest installer from the **[releases page](https://github.com/bizbrf/tangle/releases/latest)**. No dependencies required.
+Download the latest installer — no dependencies required.
 
-An MSI installer is also available on the releases page if you prefer that format.
+- **[Tangle-Setup.exe](https://github.com/bizbrf/tangle/releases/latest/download/Tangle-Setup.exe)** — recommended (NSIS installer)
+- **[Tangle-Setup.msi](https://github.com/bizbrf/tangle/releases/latest/download/Tangle-Setup.msi)** — MSI format
 
 ### Run from source
 

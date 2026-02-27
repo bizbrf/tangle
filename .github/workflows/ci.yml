@@ -110,9 +110,9 @@ jobs:
 
       - name: Upload installers to release
         run: |
-          gh release upload "${{ needs.release.outputs.tag }}" `
-            (Get-Item src-tauri/target/release/bundle/nsis/*.exe) `
-            (Get-Item src-tauri/target/release/bundle/msi/*.msi)
+          Copy-Item (Get-Item src-tauri/target/release/bundle/nsis/*.exe).FullName Tangle-Setup.exe
+          Copy-Item (Get-Item src-tauri/target/release/bundle/msi/*.msi).FullName Tangle-Setup.msi
+          gh release upload "${{ needs.release.outputs.tag }}" Tangle-Setup.exe Tangle-Setup.msi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

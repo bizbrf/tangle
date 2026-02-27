@@ -68,7 +68,12 @@ Plans:
   4. Clicking the eye icon on a file removes that file's nodes from the graph; clicking it again restores them
   5. Clicking a sheet node opens the detail panel showing the sheet name and workload metrics; clicking an edge opens the detail panel showing source and target names
   6. Uploading a `.txt` file shows an error message in the UI without crashing; uploading a corrupt `.xlsx` shows an error message and the previously uploaded files remain visible
-**Plans**: TBD
+**Plans**: 3 plans
+
+Plans:
+- [ ] 04-01-PLAN.md — Add data-testid attributes to FilePanel.tsx and GraphView.tsx; create not-excel.txt fixture
+- [ ] 04-02-PLAN.md — E2E helpers module and upload spec (E2E-01 through E2E-04)
+- [ ] 04-03-PLAN.md — Interaction, detail panel, and error specs (E2E-05 through E2E-15)
 
 ## Progress
 
@@ -82,4 +87,4 @@ Note: Phase 2 and Phase 3 are independent — they can be developed in parallel 
 | 1. Infrastructure | 3/3 | Complete    | 2026-02-27 |
 | 2. Parser Unit Tests | 2/2 | Complete    | 2026-02-27 |
 | 3. Graph Unit Tests | 2/2 | Complete    | 2026-02-27 |
-| 4. E2E Tests | 0/TBD | Not started | - |
+| 4. E2E Tests | 0/3 | Not started | - |

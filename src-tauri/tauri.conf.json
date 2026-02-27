@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "Tangle",
-  "version": "1.0.2",
+  "version": "1.1.0",
   "identifier": "com.tangle.app",
   "build": {
     "frontendDist": "../dist",

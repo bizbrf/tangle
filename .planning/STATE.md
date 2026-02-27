@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-last_updated: "2026-02-27T10:09:12.844Z"
+last_updated: "2026-02-27T10:14:45.818Z"
 progress:
   total_phases: 1
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 3
-  completed_plans: 2
+  completed_plans: 3
 ---
 
 # Project State
@@ -62,6 +62,8 @@ Recent decisions affecting current work:
 - [Phase 01-infrastructure, Plan 03]: Explicit cell construction (ws['A1'] = { t:'n', v:0, f:'...' }) required for formula fixtures — aoa_to_sheet() never sets cell.f
 - [Phase 01-infrastructure, Plan 03]: Read-back verify() pattern in generate.ts — write buffer, re-read, count formula cells before writing to disk
 - [Phase 01-infrastructure, Plan 03]: Malformed fixture uses raw Buffer.from() — SheetJS always writes valid xlsx, corrupt bytes must be crafted manually
+- [Phase 01-infrastructure]: webServer.url not webServer.port — url verifies server actually responds; port deprecated in Playwright 1.57+
+- [Phase 01-infrastructure]: Smoke test checks empty state text not .react-flow — ReactFlow conditionally renders only when workbooks loaded
 
 ### Pending Todos
 
@@ -75,5 +77,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-27
-Stopped at: Completed 01-infrastructure/01-03-PLAN.md (Test fixtures and Vitest smoke test)
+Stopped at: Completed 01-infrastructure/01-02-PLAN.md (Playwright E2E setup)
 Resume file: None

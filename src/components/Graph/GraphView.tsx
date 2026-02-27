@@ -236,7 +236,7 @@ function SheetNode({ data, selected }: NodeProps<Node<NodeData>>) {
       transition: 'box-shadow 0.15s',
     };
     return (
-      <div
+      <div data-testid="sheet-node"
         style={{
           background: selected ? C.surfaceRaised : hovered ? '#161b25' : C.surface,
           border: `1.5px solid ${selected ? C.emerald : hovered ? `${C.emerald}88` : `${C.emerald}44`}`,
@@ -321,7 +321,7 @@ function SheetNode({ data, selected }: NodeProps<Node<NodeData>>) {
   // ── External file node (collapsed, not uploaded) ──────────────────────────
   if (data.isFileNode) {
     return (
-      <div
+      <div data-testid="sheet-node"
         style={{
           background: selected ? C.surfaceRaised : hovered ? '#161b25' : C.surface,
           border: `1.5px dashed ${selected ? C.amber : hovered ? `${C.amber}88` : `${C.amber}44`}`,
@@ -393,7 +393,7 @@ function SheetNode({ data, selected }: NodeProps<Node<NodeData>>) {
 
   // ── Regular uploaded sheet node ────────────────────────────────────────────
   return (
-    <div
+    <div data-testid="sheet-node"
       style={containerStyle}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
@@ -656,7 +656,7 @@ function DetailPanel({ selectedNodes, selectedEdge, onClose, onFocus, focusNodeI
   });
 
   return (
-    <div style={panelStyle}>
+    <div data-testid="detail-panel" style={panelStyle}>
       {/* Header */}
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -665,7 +665,7 @@ function DetailPanel({ selectedNodes, selectedEdge, onClose, onFocus, focusNodeI
         background: C.surface,
         position: 'sticky', top: 0, zIndex: 1,
       }}>
-        <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: C.textMuted }}>
+        <span data-testid="detail-panel-title" style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: C.textMuted }}>
           {isMulti ? `${selectedNodes.length} selected` : node ? (node.data.isNamedRange ? 'Named Range' : 'Sheet') : 'References'}
         </span>
         <button
@@ -772,7 +772,7 @@ function DetailPanel({ selectedNodes, selectedEdge, onClose, onFocus, focusNodeI
                 <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: C.textMuted }}>
                   Workload
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                <div data-testid="workload-metrics" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                   {[
                     { label: 'formulas', value: node.data.workload.totalFormulas, color: C.textPrimary },
                     { label: 'within-sheet', value: node.data.workload.withinSheetRefs, color: C.textSecondary },
@@ -948,6 +948,7 @@ function Toolbar({ layoutMode, onLayoutChange }: {
         const active = layoutMode === mode;
         return (
           <button
+            data-testid={`layout-${mode}`}
             key={mode}
             onClick={() => onLayoutChange(mode)}
             style={{
@@ -1018,6 +1019,7 @@ function EdgeKindFilterBar({ filter, onFilterChange, showNamedRanges }: {
         const on = filter[kind];
         return (
           <button
+            data-testid={`edge-filter-${kind}`}
             key={kind}
             onClick={() => toggleKind(kind)}
             style={{
@@ -1433,7 +1435,7 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
 
       {/* Focus Mode Controls */}
       {focusNodeId && (
-        <div style={{
+        <div data-testid="focus-panel" style={{
           position: 'absolute', top: 12, right: 16, zIndex: 10,
           display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px',
           background: '#0d1017',

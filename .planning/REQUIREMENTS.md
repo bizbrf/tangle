@@ -25,9 +25,9 @@
 - [x] **PARSE-06**: Named ranges are detected and distinguished from function calls (e.g., `SUM(...)` is not a named range)
 - [x] **PARSE-07**: Named range references in formulas do not appear as duplicate edges
 - [x] **PARSE-08**: Workload metrics (totalFormulas, withinSheetRefs, crossSheetRefs, crossFileRefs) are counted correctly
-- [ ] **PARSE-09**: Empty workbooks (no formulas) return empty reference arrays with zero workload metrics
-- [ ] **PARSE-10**: Malformed or corrupt `.xlsx` files are handled gracefully — `parseWorkbook()` rejects with an error, not a crash
-- [ ] **PARSE-11**: Circular references between sheets (A → B → A) do not cause infinite loops or crashes
+- [x] **PARSE-09**: Empty workbooks (no formulas) return empty reference arrays with zero workload metrics
+- [x] **PARSE-10**: Malformed or corrupt `.xlsx` files are handled gracefully — `parseWorkbook()` rejects with an error, not a crash
+- [x] **PARSE-11**: Circular references between sheets (A → B → A) do not cause infinite loops or crashes
 
 ### Graph Unit Tests
 
@@ -109,9 +109,9 @@
 | PARSE-06 | Phase 2 | Complete |
 | PARSE-07 | Phase 2 | Complete |
 | PARSE-08 | Phase 2 | Complete |
-| PARSE-09 | Phase 2 | Pending |
-| PARSE-10 | Phase 2 | Pending |
-| PARSE-11 | Phase 2 | Pending |
+| PARSE-09 | Phase 2 | Complete |
+| PARSE-10 | Phase 2 | Complete |
+| PARSE-11 | Phase 2 | Complete |
 | GRAPH-01 | Phase 3 | Pending |
 | GRAPH-02 | Phase 3 | Pending |
 | GRAPH-03 | Phase 3 | Pending |

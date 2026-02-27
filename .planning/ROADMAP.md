@@ -13,7 +13,7 @@ Tangle has 10 shipped features and zero automated tests. This milestone builds a
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Infrastructure** - Install and configure Vitest, Playwright, and the fixture generator so tests can run at all (completed 2026-02-27)
-- [ ] **Phase 2: Parser Unit Tests** - Cover all reference extraction logic in `parser.ts` including edge cases and error handling
+- [x] **Phase 2: Parser Unit Tests** - Cover all reference extraction logic in `parser.ts` including edge cases and error handling (completed 2026-02-27)
 - [ ] **Phase 3: Graph Unit Tests** - Cover `buildGraph()`, layout modes, and edge classification in `graph.ts`
 - [ ] **Phase 4: E2E Tests** - Cover the full upload-to-graph pipeline and feature interactions in a real browser
 
@@ -80,6 +80,6 @@ Note: Phase 2 and Phase 3 are independent — they can be developed in parallel 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Infrastructure | 3/3 | Complete    | 2026-02-27 |
-| 2. Parser Unit Tests | 1/2 | In Progress|  |
+| 2. Parser Unit Tests | 2/2 | Complete   | 2026-02-27 |
 | 3. Graph Unit Tests | 0/TBD | Not started | - |
 | 4. E2E Tests | 0/TBD | Not started | - |

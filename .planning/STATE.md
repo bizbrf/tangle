@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-last_updated: "2026-02-27T10:47:53.887Z"
+last_updated: "2026-02-27T10:51:30Z"
 progress:
   total_phases: 2
   completed_phases: 1
   total_plans: 5
-  completed_plans: 4
+  completed_plans: 5
 ---
 
 # Project State
@@ -23,11 +23,11 @@ See: .planning/PROJECT.md (updated 2026-02-27)
 ## Current Position
 
 Phase: 2 of 4 (Parser Unit Tests)
-Plan: 1 of TBD in current phase (02-01 complete)
+Plan: 2 of 2 in current phase (02-02 complete)
 Status: In progress
-Last activity: 2026-02-27 — Completed 02-01: Parser unit tests (PARSE-01 through PARSE-08)
+Last activity: 2026-02-27 — Completed 02-02: Parser error tests (PARSE-09 through PARSE-11)
 
-Progress: [██░░░░░░░░] ~20%
+Progress: [████░░░░░░] ~40%
 
 ## Performance Metrics
 
@@ -41,11 +41,11 @@ Progress: [██░░░░░░░░] ~20%
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 01-infrastructure | 2 | 6 min | 3 min |
-| 02-parser-unit-tests | 1 | 2 min | 2 min |
+| 02-parser-unit-tests | 2 | 3 min | 1.5 min |
 
 **Recent Trend:**
-- Last 5 plans: 2 min
-- Trend: -
+- Last 5 plans: 1.5 min
+- Trend: improving
 
 *Updated after each plan completion*
 
@@ -68,6 +68,8 @@ Recent decisions affecting current work:
 - [Phase 02-parser-unit-tests]: Add export keyword only to 3 parser functions — no other changes; readFileEntry remains private
 - [Phase 02-parser-unit-tests]: Inline workbooks via XLSX.write/read round-trip for PARSE-03/PARSE-06/07 tests requiring specific formula shapes not in fixture files
 - [Phase 02-parser-unit-tests]: Avoid the word 'annotation' in Vitest test comments — triggers false @vitest-environment module resolution
+- [Phase 02-parser-unit-tests, Plan 02]: `// @vitest-environment jsdom` on line 1 enables File/FileReader in that test file only — entire file runs jsdom; acceptable for PARSE-09/11 (pure regex, no DOM APIs)
+- [Phase 02-parser-unit-tests, Plan 02]: Do not assert SheetJS error message text in PARSE-10 — use .rejects.toThrow() without message arg; error strings vary by SheetJS version
 
 ### Pending Todos
 
@@ -81,5 +83,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-27
-Stopped at: Completed 02-parser-unit-tests/02-01-PLAN.md (Parser unit tests)
+Stopped at: Completed 02-parser-unit-tests/02-02-PLAN.md (Parser error tests — PARSE-09, PARSE-10, PARSE-11)
 Resume file: None

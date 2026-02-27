@@ -33,6 +33,8 @@ jobs:
 
       - name: Build
         run: npm run build
+        env:
+          VITE_PAGES: true
 
       - name: Upload Pages artifact
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'

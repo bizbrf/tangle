@@ -3,7 +3,7 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
 export default defineConfig({
-  base: process.env.GITHUB_ACTIONS ? '/tangle/' : '/',
+  base: process.env.VITE_PAGES ? '/tangle/' : '/',
   plugins: [react(), tailwindcss()],
   clearScreen: false,
   server: {

@@ -7,13 +7,13 @@
 
 ### Infrastructure
 
-- [ ] **INFRA-01**: Vitest is installed and configured with jsdom environment and SheetJS inline dependency fix (`test.server.deps.inline: ['xlsx']`)
-- [ ] **INFRA-02**: `vitest.config.ts` exists as a separate file from `vite.config.ts` to avoid TypeScript context conflicts
+- [x] **INFRA-01**: Vitest is installed and configured with jsdom environment and SheetJS inline dependency fix (`test.server.deps.inline: ['xlsx']`)
+- [x] **INFRA-02**: `vitest.config.ts` exists as a separate file from `vite.config.ts` to avoid TypeScript context conflicts
 - [ ] **INFRA-03**: A programmatic fixture generator script (`tests/fixtures/generate.ts`) creates verified `.xlsx` test files via SheetJS
 - [ ] **INFRA-04**: Test fixtures cover: simple cross-sheet refs, external file refs, named ranges, empty workbook, malformed/corrupt file, large workbook (100+ sheets), circular references
-- [ ] **INFRA-05**: Coverage reporting is configured via `@vitest/coverage-v8` with HTML output
-- [ ] **INFRA-06**: Playwright is installed and configured to run E2E tests against the Vite dev server (`http://localhost:5173`)
-- [ ] **INFRA-07**: `npm test` runs unit tests; `npm run test:e2e` runs E2E tests; `npm run test:coverage` generates coverage report
+- [x] **INFRA-05**: Coverage reporting is configured via `@vitest/coverage-v8` with HTML output
+- [x] **INFRA-06**: Playwright is installed and configured to run E2E tests against the Vite dev server (`http://localhost:5173`)
+- [x] **INFRA-07**: `npm test` runs unit tests; `npm run test:e2e` runs E2E tests; `npm run test:coverage` generates coverage report
 
 ### Parser Unit Tests
 
@@ -94,13 +94,13 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| INFRA-01 | Phase 1 | Pending |
-| INFRA-02 | Phase 1 | Pending |
+| INFRA-01 | Phase 1 | Complete |
+| INFRA-02 | Phase 1 | Complete |
 | INFRA-03 | Phase 1 | Pending |
 | INFRA-04 | Phase 1 | Pending |
-| INFRA-05 | Phase 1 | Pending |
-| INFRA-06 | Phase 1 | Pending |
-| INFRA-07 | Phase 1 | Pending |
+| INFRA-05 | Phase 1 | Complete |
+| INFRA-06 | Phase 1 | Complete |
+| INFRA-07 | Phase 1 | Complete |
 | PARSE-01 | Phase 2 | Pending |
 | PARSE-02 | Phase 2 | Pending |
 | PARSE-03 | Phase 2 | Pending |

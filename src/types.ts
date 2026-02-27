@@ -5,6 +5,7 @@ export interface SheetReference {
   formula: string;
   sourceCell: string;
   namedRangeName?: string; // set when this ref was detected via a named range
+  tableName?: string;      // set when this ref was detected via an Excel table
 }
 
 export interface NamedRange {
@@ -15,6 +16,13 @@ export interface NamedRange {
   cells: string;         // cell/range portion, e.g. "A1:B10"
   scope: 'workbook' | 'sheet';
   scopeSheet?: string;   // sheet name when scope is 'sheet'
+}
+
+export interface ExcelTable {
+  name: string;         // displayName if available, else name
+  ref: string;          // raw range, e.g. "A1:D10"
+  targetSheet: string;  // sheet where table is defined
+  cells: string;        // same as ref (the cell range)
 }
 
 export interface ParsedSheet {
@@ -29,6 +37,7 @@ export interface WorkbookFile {
   name: string;
   sheets: ParsedSheet[];
   namedRanges: NamedRange[];
+  tables: ExcelTable[];
 }
 
 export interface SheetWorkload {

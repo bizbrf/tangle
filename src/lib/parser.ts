@@ -1,5 +1,5 @@
 import * as XLSX from 'xlsx';
-import type { WorkbookFile, ParsedSheet, SheetReference, SheetWorkload, NamedRange } from '../types';
+import type { WorkbookFile, ParsedSheet, SheetReference, SheetWorkload, NamedRange, ExcelTable } from '../types';
 
 // ── Supported Excel file types ───────────────────────────────────────────────
 export const EXCEL_EXTENSIONS = ['.xlsx', '.xls', '.xlsm', '.xlsb'];
@@ -129,6 +129,29 @@ export function extractNamedRanges(wb: XLSX.WorkBook): NamedRange[] {
   return ranges;
 }
 
+// ── Excel table extraction ───────────────────────────────────────────────────
+
+export function extractTables(wb: XLSX.WorkBook): ExcelTable[] {
+  const tables: ExcelTable[] = [];
+  for (const sheetName of wb.SheetNames) {
+    const ws = wb.Sheets[sheetName] as Record<string, unknown>;
+    if (!ws) continue;
+    const rawTables = ws['!tables'];
+    if (!Array.isArray(rawTables)) continue;
+    for (const entry of rawTables as { name?: string; displayName?: string; ref?: string }[]) {
+      if (!entry.ref) continue;
+      const name = entry.displayName ?? entry.name ?? 'Table';
+      tables.push({
+        name,
+        ref: entry.ref,
+        targetSheet: sheetName,
+        cells: entry.ref,
+      });
+    }
+  }
+  return tables;
+}
+
 // ── Reference extraction ────────────────────────────────────────────────────
 
 export function extractReferences(
@@ -137,6 +160,7 @@ export function extractReferences(
   workbookName: string,
   linkMap: Map<string, string>,
   namedRangeMap: Map<string, NamedRange>,
+  tableMap: Map<string, ExcelTable> = new Map(),
 ): { references: SheetReference[]; workload: SheetWorkload } {
   const refs: SheetReference[] = [];
   const workload: SheetWorkload = { totalFormulas: 0, withinSheetRefs: 0, crossSheetRefs: 0, crossFileRefs: 0 };
@@ -153,6 +177,17 @@ export function extractReferences(
       nr.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'),
     );
     namedRangeRe = new RegExp(`\\b(${escaped.join('|')})\\b(?!\\()`, 'gi');
+  }
+
+  // Build a regex for Excel table names: TableName[ means structured reference like TableName[Column]
+  // Also match plain TableName\b when not followed by ( (to catch full-table references)
+  let tableRe: RegExp | null = null;
+  if (tableMap.size > 0) {
+    const escaped = Array.from(tableMap.values()).map((t) =>
+      t.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'),
+    );
+    // Match TableName[ (structured ref) or TableName\b not followed by (
+    tableRe = new RegExp(`\\b(${escaped.join('|')})(?:\\[|\\b(?!\\())`, 'gi');
   }
 
   for (const [cellAddr, cell] of Object.entries(sheet)) {
@@ -233,6 +268,33 @@ export function extractReferences(
       }
     }
 
+    // Third pass: detect Excel table structured references in this formula
+    if (tableRe) {
+      tableRe.lastIndex = 0;
+      let tMatch: RegExpExecArray | null;
+      while ((tMatch = tableRe.exec(formula)) !== null) {
+        const matchedName = tMatch[1] ?? tMatch[0].replace(/\[$/, '');
+        const table = tableMap.get(matchedName.toLowerCase());
+        if (!table) continue;
+        // Tables are local to the workbook; skip if same sheet as source
+        if (table.targetSheet.toLowerCase() === selfSheet) {
+          workload.withinSheetRefs++;
+          continue;
+        }
+        const key = `TBL|${table.name}|${table.targetSheet}`;
+        if (!byTarget.has(key)) {
+          byTarget.set(key, {
+            targetWorkbook: null,
+            targetSheet: table.targetSheet,
+            cells: [table.cells],
+            formula,
+            sourceCell: cellAddr,
+            tableName: table.name,
+          });
+        }
+      }
+    }
+
     for (const ref of byTarget.values()) {
       if (ref.targetWorkbook) {
         workload.crossFileRefs++;
@@ -263,11 +325,17 @@ export function parseWorkbook(file: File, fileId: string): Promise<WorkbookFile>
         for (const nr of namedRanges) {
           namedRangeMap.set(nr.name.toLowerCase(), nr);
         }
+        const tables = extractTables(wb);
+        // Build lookup map: lowercase name → ExcelTable
+        const tableMap = new Map<string, ExcelTable>();
+        for (const t of tables) {
+          tableMap.set(t.name.toLowerCase(), t);
+        }
         const sheets: ParsedSheet[] = wb.SheetNames.map((sheetName) => {
-          const { references, workload } = extractReferences(wb.Sheets[sheetName], sheetName, file.name, linkMap, namedRangeMap);
+          const { references, workload } = extractReferences(wb.Sheets[sheetName], sheetName, file.name, linkMap, namedRangeMap, tableMap);
           return { workbookName: file.name, sheetName, references, workload };
         });
-        resolve({ id: fileId, name: file.name, sheets, namedRanges });
+        resolve({ id: fileId, name: file.name, sheets, namedRanges, tables });
       } catch (err) {
         reject(err);
       }

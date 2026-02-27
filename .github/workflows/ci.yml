@@ -11,8 +11,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      pages: write
-      id-token: write
 
     steps:
       - uses: actions/checkout@v4
@@ -36,10 +34,6 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Configure Pages
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-        uses: actions/configure-pages@v5
-
       - name: Upload Pages artifact
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         uses: actions/upload-pages-artifact@v3
@@ -51,3 +45,21 @@ jobs:
 
       - name: E2E Tests
         run: npm run test:e2e
+
+  deploy:
+    needs: build
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    concurrency:
+      group: pages
+      cancel-in-progress: true
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

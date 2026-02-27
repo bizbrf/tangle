@@ -46,6 +46,37 @@ jobs:
       - name: E2E Tests
         run: npm run test:e2e
 
+  release:
+    needs: build
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read version
+        id: version
+        run: echo "tag=v$(jq -r .version package.json)" >> $GITHUB_OUTPUT
+
+      - name: Check if tag exists
+        id: tag_check
+        run: |
+          if git ls-remote --tags origin "${{ steps.version.outputs.tag }}" | grep -q .; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create release
+        if: steps.tag_check.outputs.exists == 'false'
+        run: |
+          gh release create "${{ steps.version.outputs.tag }}" \
+            --title "${{ steps.version.outputs.tag }}" \
+            --generate-notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   deploy:
     needs: build
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'

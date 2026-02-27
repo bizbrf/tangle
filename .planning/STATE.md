@@ -98,6 +98,12 @@ None yet.
 - [Phase 2 — RESOLVED]: `extractReferences`, `extractNamedRanges`, and `buildExternalLinkMap` are now exported from `parser.ts` and fully covered by unit tests.
 - [Phase 3 — RESOLVED]: All 7 GRAPH requirements covered — 43 total unit tests passing.
 
+### Quick Tasks Completed
+
+| # | Description | Date | Commit | Directory |
+|---|-------------|------|--------|-----------|
+| 1 | named ranges button splits named ranges from sheet; tables same behavior | 2026-02-27 | 9079b7b | [1-named-ranges-button-splits-named-ranges-](./quick/1-named-ranges-button-splits-named-ranges-/) |
+
 ## Session Continuity
 
 Last session: 2026-02-27

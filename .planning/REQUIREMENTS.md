@@ -31,10 +31,10 @@
 
 ### Graph Unit Tests
 
-- [ ] **GRAPH-01**: `buildGraph()` creates exactly one node per uploaded sheet (in standard layout mode)
-- [ ] **GRAPH-02**: `buildGraph()` creates edges for each detected cross-sheet reference
-- [ ] **GRAPH-03**: Edge kind is classified correctly: `internal` (same workbook), `cross-file` (both uploaded), `external` (target not uploaded), `named-range`
-- [ ] **GRAPH-04**: Sheets from hidden files are excluded from nodes and their edges removed
+- [x] **GRAPH-01**: `buildGraph()` creates exactly one node per uploaded sheet (in standard layout mode)
+- [x] **GRAPH-02**: `buildGraph()` creates edges for each detected cross-sheet reference
+- [x] **GRAPH-03**: Edge kind is classified correctly: `internal` (same workbook), `cross-file` (both uploaded), `external` (target not uploaded), `named-range`
+- [x] **GRAPH-04**: Sheets from hidden files are excluded from nodes and their edges removed
 - [ ] **GRAPH-05**: All three layout modes (graph, grouped, overview) return non-empty node arrays with valid position coordinates
 - [ ] **GRAPH-06**: `buildOverviewGraph()` returns exactly one node per uploaded workbook
 - [ ] **GRAPH-07**: Named range nodes appear when `showNamedRanges` is true and disappear when false
@@ -112,10 +112,10 @@
 | PARSE-09 | Phase 2 | Complete |
 | PARSE-10 | Phase 2 | Complete |
 | PARSE-11 | Phase 2 | Complete |
-| GRAPH-01 | Phase 3 | Pending |
-| GRAPH-02 | Phase 3 | Pending |
-| GRAPH-03 | Phase 3 | Pending |
-| GRAPH-04 | Phase 3 | Pending |
+| GRAPH-01 | Phase 3 | Complete |
+| GRAPH-02 | Phase 3 | Complete |
+| GRAPH-03 | Phase 3 | Complete |
+| GRAPH-04 | Phase 3 | Complete |
 | GRAPH-05 | Phase 3 | Pending |
 | GRAPH-06 | Phase 3 | Pending |
 | GRAPH-07 | Phase 3 | Pending |

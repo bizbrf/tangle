@@ -5,10 +5,10 @@ milestone_name: milestone
 status: unknown
 last_updated: "2026-02-27T10:54:40.648Z"
 progress:
-  total_phases: 2
+  total_phases: 4
   completed_phases: 2
-  total_plans: 5
-  completed_plans: 5
+  total_plans: 7
+  completed_plans: 6
 ---
 
 # Project State
@@ -18,23 +18,23 @@ progress:
 See: .planning/PROJECT.md (updated 2026-02-27)
 
 **Core value:** Users can reliably understand how their Excel workbooks reference each other — the graph must always be correct, even with edge-case or malformed files.
-**Current focus:** Phase 2 — Parser Unit Tests
+**Current focus:** Phase 3 — Graph Unit Tests
 
 ## Current Position
 
-Phase: 2 of 4 (Parser Unit Tests)
-Plan: 2 of 2 in current phase (02-02 complete)
+Phase: 3 of 4 (Graph Unit Tests)
+Plan: 1 of 2 in current phase (03-01 complete)
 Status: In progress
-Last activity: 2026-02-27 — Completed 02-02: Parser error tests (PARSE-09 through PARSE-11)
+Last activity: 2026-02-27 — Completed 03-01: Graph unit tests (GRAPH-01 through GRAPH-04)
 
-Progress: [████░░░░░░] ~40%
+Progress: [██████░░░░] ~60%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 2
+- Total plans completed: 6
 - Average duration: 3 min
-- Total execution time: 6 min
+- Total execution time: ~14 min
 
 **By Phase:**
 
@@ -42,10 +42,11 @@ Progress: [████░░░░░░] ~40%
 |-------|-------|-------|----------|
 | 01-infrastructure | 2 | 6 min | 3 min |
 | 02-parser-unit-tests | 2 | 3 min | 1.5 min |
+| 03-graph-unit-tests | 1 | 4 min | 4 min |
 
 **Recent Trend:**
-- Last 5 plans: 1.5 min
-- Trend: improving
+- Last 5 plans: 3 min
+- Trend: stable
 
 *Updated after each plan completion*
 
@@ -70,6 +71,9 @@ Recent decisions affecting current work:
 - [Phase 02-parser-unit-tests]: Avoid the word 'annotation' in Vitest test comments — triggers false @vitest-environment module resolution
 - [Phase 02-parser-unit-tests, Plan 02]: `// @vitest-environment jsdom` on line 1 enables File/FileReader in that test file only — entire file runs jsdom; acceptable for PARSE-09/11 (pure regex, no DOM APIs)
 - [Phase 02-parser-unit-tests, Plan 02]: Do not assert SheetJS error message text in PARSE-10 — use .rejects.toThrow() without message arg; error strings vary by SheetJS version
+- [Phase 03-graph-unit-tests, Plan 01]: makeWorkbook() factory builds WorkbookFile from name + [{sheetName, refs?}] — no SheetJS needed for graph tests
+- [Phase 03-graph-unit-tests, Plan 01]: Filter !isExternal && !isFileNode for GRAPH-01 node count to avoid counting external file nodes created by cross-workbook refs
+- [Phase 03-graph-unit-tests, Plan 01]: Use exact same filename string on both WorkbookFile.name and SheetReference.targetWorkbook to avoid normWb() normalization surprises
 
 ### Pending Todos
 
@@ -83,5 +87,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-27
-Stopped at: Completed 02-parser-unit-tests/02-02-PLAN.md (Parser error tests — PARSE-09, PARSE-10, PARSE-11)
+Stopped at: Completed 03-graph-unit-tests/03-01-PLAN.md (Graph unit tests — GRAPH-01 through GRAPH-04)
 Resume file: None

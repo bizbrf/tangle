@@ -200,3 +200,79 @@ describe('GRAPH-04: hidden files excluded from nodes and edges', () => {
     expect(fileANodes).toHaveLength(1)
   })
 })
+
+// ── GRAPH-05: all layout modes return non-empty nodes with valid positions ─────
+
+describe('GRAPH-05: all layout modes return non-empty nodes with valid positions', () => {
+  // Two workbooks with a cross-file reference — ensures inter-group edges in grouped layout
+  const crossFileRef: SheetReference = {
+    targetWorkbook: 'FileB.xlsx',
+    targetSheet: 'Sheet1',
+    cells: ['A1'],
+    formula: '[FileB.xlsx]Sheet1!A1',
+    sourceCell: 'A1',
+  }
+  const wbA = makeWorkbook('FileA.xlsx', [{ sheetName: 'Sheet1', refs: [crossFileRef] }])
+  const wbB = makeWorkbook('FileB.xlsx', [{ sheetName: 'Sheet1' }])
+
+  it('graph layout returns non-empty nodes with non-zero positions', () => {
+    const { nodes } = buildGraph([wbA, wbB], 'graph')
+    expect(nodes.length).toBeGreaterThan(0)
+    for (const node of nodes) {
+      expect(node.position.x).toBeGreaterThan(0)
+      expect(node.position.y).toBeGreaterThan(0)
+    }
+  })
+
+  it('grouped layout returns non-empty nodes with non-zero positions', () => {
+    const { nodes } = buildGraph([wbA, wbB], 'grouped')
+    expect(nodes.length).toBeGreaterThan(0)
+    for (const node of nodes) {
+      expect(node.position.x).toBeGreaterThan(0)
+      expect(node.position.y).toBeGreaterThan(0)
+    }
+  })
+
+  it('overview layout returns non-empty nodes with non-zero positions', () => {
+    const { nodes } = buildGraph([wbA, wbB], 'overview')
+    expect(nodes.length).toBeGreaterThan(0)
+    for (const node of nodes) {
+      expect(node.position.x).toBeGreaterThan(0)
+      expect(node.position.y).toBeGreaterThan(0)
+    }
+  })
+})
+
+// ── GRAPH-06: overview mode returns one node per uploaded workbook ────────────
+
+describe('GRAPH-06: overview mode returns one node per uploaded workbook', () => {
+  it('two uploaded workbooks produce exactly two non-external nodes in overview mode', () => {
+    // Use cross-file refs so overview has edges, but both targets are uploaded
+    const crossFileRef: SheetReference = {
+      targetWorkbook: 'FileB.xlsx',
+      targetSheet: 'Sheet1',
+      cells: ['A1'],
+      formula: '[FileB.xlsx]Sheet1!A1',
+      sourceCell: 'A1',
+    }
+    const wbA = makeWorkbook('FileA.xlsx', [
+      { sheetName: 'Sheet1', refs: [crossFileRef] },
+      { sheetName: 'Sheet2' },
+    ])
+    const wbB = makeWorkbook('FileB.xlsx', [{ sheetName: 'Sheet1' }])
+
+    const { nodes } = buildGraph([wbA, wbB], 'overview')
+    // Filter out any external file nodes — only count uploaded workbook nodes
+    const uploadedNodes = nodes.filter(n => !n.data.isExternal)
+    expect(uploadedNodes).toHaveLength(2)
+  })
+
+  it('three uploaded workbooks produce exactly three non-external nodes in overview mode', () => {
+    const wbA = makeWorkbook('FileA.xlsx', [{ sheetName: 'Sheet1' }])
+    const wbB = makeWorkbook('FileB.xlsx', [{ sheetName: 'Sheet1' }])
+    const wbC = makeWorkbook('FileC.xlsx', [{ sheetName: 'Sheet1' }])
+    const { nodes } = buildGraph([wbA, wbB, wbC], 'overview')
+    const uploadedNodes = nodes.filter(n => !n.data.isExternal)
+    expect(uploadedNodes).toHaveLength(3)
+  })
+})

@@ -29,7 +29,12 @@ Decimal phases appear between their surrounding integers in numeric order.
   3. Running `npm run fixtures:generate` produces `.xlsx` files in `tests/fixtures/` where each file has at least one cell with a formula string (verified by a read-back check in the script)
   4. Running `npm run test:coverage` generates an HTML coverage report in `coverage/`
   5. `vitest.config.ts` and `vite.config.ts` are separate files with no TypeScript context conflicts
-**Plans**: TBD
+**Plans**: 3 plans
+
+Plans:
+- [ ] 01-01-PLAN.md — Vitest config, coverage, TypeScript/ESLint updates, all npm scripts
+- [ ] 01-02-PLAN.md — Playwright config and E2E smoke test
+- [ ] 01-03-PLAN.md — Fixture generator (7 verified .xlsx files) and Vitest smoke test
 
 ### Phase 2: Parser Unit Tests
 **Goal**: Every reference extraction path in `parser.ts` is covered by a passing unit test — cross-sheet refs, external file refs, named ranges, workload metrics, empty workbooks, malformed files, and circular refs all have verified behavior
@@ -74,7 +79,7 @@ Note: Phase 2 and Phase 3 are independent — they can be developed in parallel 
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Infrastructure | 0/TBD | Not started | - |
+| 1. Infrastructure | 0/3 | Not started | - |
 | 2. Parser Unit Tests | 0/TBD | Not started | - |
 | 3. Graph Unit Tests | 0/TBD | Not started | - |
 | 4. E2E Tests | 0/TBD | Not started | - |

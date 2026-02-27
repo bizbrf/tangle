@@ -45,7 +45,7 @@ function readFileEntry(entry: unknown): string | null {
   return null;
 }
 
-function buildExternalLinkMap(wb: XLSX.WorkBook): Map<string, string> {
+export function buildExternalLinkMap(wb: XLSX.WorkBook): Map<string, string> {
   const map = new Map<string, string>(); // "1" → "Assumptions.xlsx"
   const files = (wb as unknown as Record<string, unknown>).files as Record<string, unknown> | undefined;
   if (!files) return map;
@@ -83,7 +83,7 @@ function buildExternalLinkMap(wb: XLSX.WorkBook): Map<string, string> {
 
 // ── Named range extraction ───────────────────────────────────────────────────
 
-function extractNamedRanges(wb: XLSX.WorkBook): NamedRange[] {
+export function extractNamedRanges(wb: XLSX.WorkBook): NamedRange[] {
   const names = (wb.Workbook?.Names ?? []) as Array<{
     Name?: string;
     Ref?: string;
@@ -131,7 +131,7 @@ function extractNamedRanges(wb: XLSX.WorkBook): NamedRange[] {
 
 // ── Reference extraction ────────────────────────────────────────────────────
 
-function extractReferences(
+export function extractReferences(
   sheet: XLSX.WorkSheet,
   sheetName: string,
   workbookName: string,

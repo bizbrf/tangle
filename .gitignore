@@ -31,3 +31,6 @@ CLAUDE.md
 coverage/
 playwright-report/
 test-results/
+
+# GSD planning docs (local only)
+.planning/

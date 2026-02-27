@@ -41,30 +41,30 @@
 
 ### E2E Tests — Core Upload Flow
 
-- [ ] **E2E-01**: User can upload a `.xlsx` file via the file input; the filename appears in the sidebar
-- [ ] **E2E-02**: Uploaded file's sheets are listed under the filename in the sidebar (expandable)
-- [ ] **E2E-03**: Graph canvas renders at least one node after upload
-- [ ] **E2E-04**: User can upload multiple files; all appear in sidebar and graph
+- [x] **E2E-01**: User can upload a `.xlsx` file via the file input; the filename appears in the sidebar
+- [x] **E2E-02**: Uploaded file's sheets are listed under the filename in the sidebar (expandable)
+- [x] **E2E-03**: Graph canvas renders at least one node after upload
+- [x] **E2E-04**: User can upload multiple files; all appear in sidebar and graph
 
 ### E2E Tests — Feature Interactions
 
-- [ ] **E2E-05**: Switching layout mode (Graph → Grouped → Overview) updates the graph — node count changes for Overview mode
-- [ ] **E2E-06**: Toggling edge kind filter (e.g., hiding external edges) removes those edges from the graph
-- [ ] **E2E-07**: Clicking the eye icon on a file hides its nodes from the graph
-- [ ] **E2E-08**: Clicking the eye icon again (re-show) restores the hidden nodes
-- [ ] **E2E-09**: Focus mode — clicking a node and setting focus depth filters graph to neighborhood only
+- [x] **E2E-05**: Switching layout mode (Graph → Grouped → Overview) updates the graph — node count changes for Overview mode
+- [x] **E2E-06**: Toggling edge kind filter (e.g., hiding external edges) removes those edges from the graph
+- [x] **E2E-07**: Clicking the eye icon on a file hides its nodes from the graph
+- [x] **E2E-08**: Clicking the eye icon again (re-show) restores the hidden nodes
+- [x] **E2E-09**: Focus mode — clicking a node and setting focus depth filters graph to neighborhood only
 
 ### E2E Tests — Detail Panel
 
-- [ ] **E2E-10**: Clicking a sheet node opens the detail panel showing the sheet name
-- [ ] **E2E-11**: Detail panel shows workload metrics (formula count, reference counts)
-- [ ] **E2E-12**: Clicking an edge opens the detail panel showing source and target sheet names
+- [x] **E2E-10**: Clicking a sheet node opens the detail panel showing the sheet name
+- [x] **E2E-11**: Detail panel shows workload metrics (formula count, reference counts)
+- [x] **E2E-12**: Clicking an edge opens the detail panel showing source and target sheet names
 
 ### E2E Tests — Error Handling
 
-- [ ] **E2E-13**: Uploading a non-Excel file (e.g., `.txt`) shows an error message and does not crash the app
-- [ ] **E2E-14**: Uploading a corrupt/malformed `.xlsx` file shows an error message in the UI
-- [ ] **E2E-15**: App remains usable (other files still visible in graph) after a failed upload
+- [x] **E2E-13**: Uploading a non-Excel file (e.g., `.txt`) shows an error message and does not crash the app
+- [x] **E2E-14**: Uploading a corrupt/malformed `.xlsx` file shows an error message in the UI
+- [x] **E2E-15**: App remains usable (other files still visible in graph) after a failed upload
 
 ## v2 Requirements
 
@@ -119,21 +119,21 @@
 | GRAPH-05 | Phase 3 | Complete |
 | GRAPH-06 | Phase 3 | Complete |
 | GRAPH-07 | Phase 3 | Complete |
-| E2E-01 | Phase 4 | Pending |
-| E2E-02 | Phase 4 | Pending |
-| E2E-03 | Phase 4 | Pending |
-| E2E-04 | Phase 4 | Pending |
-| E2E-05 | Phase 4 | Pending |
-| E2E-06 | Phase 4 | Pending |
-| E2E-07 | Phase 4 | Pending |
-| E2E-08 | Phase 4 | Pending |
-| E2E-09 | Phase 4 | Pending |
-| E2E-10 | Phase 4 | Pending |
-| E2E-11 | Phase 4 | Pending |
-| E2E-12 | Phase 4 | Pending |
-| E2E-13 | Phase 4 | Pending |
-| E2E-14 | Phase 4 | Pending |
-| E2E-15 | Phase 4 | Pending |
+| E2E-01 | Phase 4 | Complete |
+| E2E-02 | Phase 4 | Complete |
+| E2E-03 | Phase 4 | Complete |
+| E2E-04 | Phase 4 | Complete |
+| E2E-05 | Phase 4 | Complete |
+| E2E-06 | Phase 4 | Complete |
+| E2E-07 | Phase 4 | Complete |
+| E2E-08 | Phase 4 | Complete |
+| E2E-09 | Phase 4 | Complete |
+| E2E-10 | Phase 4 | Complete |
+| E2E-11 | Phase 4 | Complete |
+| E2E-12 | Phase 4 | Complete |
+| E2E-13 | Phase 4 | Complete |
+| E2E-14 | Phase 4 | Complete |
+| E2E-15 | Phase 4 | Complete |
 
 **Coverage:**
 - v1 requirements: 40 total (INFRA: 7, PARSE: 11, GRAPH: 7, E2E: 15)

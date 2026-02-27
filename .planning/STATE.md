@@ -5,10 +5,10 @@ milestone_name: milestone
 status: unknown
 last_updated: "2026-02-27T11:22:32.800Z"
 progress:
-  total_phases: 3
+  total_phases: 4
   completed_phases: 3
-  total_plans: 7
-  completed_plans: 7
+  total_plans: 9
+  completed_plans: 8
 ---
 
 # Project State
@@ -22,12 +22,12 @@ See: .planning/PROJECT.md (updated 2026-02-27)
 
 ## Current Position
 
-Phase: 3 of 4 complete (Graph Unit Tests — DONE)
-Plan: 2 of 2 in phase 03 (03-02 complete)
-Status: Phase 3 complete, ready for Phase 4
-Last activity: 2026-02-27 — Completed 03-02: Graph unit tests (GRAPH-05 through GRAPH-07)
+Phase: 4 of 4 in progress (E2E Tests)
+Plan: 1 of 2 in phase 04 (04-01 complete)
+Status: Phase 4 in progress — test instrumentation done, E2E specs next
+Last activity: 2026-02-27 — Completed 04-01: Test instrumentation (data-testid attributes + fixture)
 
-Progress: [████████░░] ~75%
+Progress: [████████░░] ~88%
 
 ## Performance Metrics
 
@@ -43,6 +43,7 @@ Progress: [████████░░] ~75%
 | 01-infrastructure | 2 | 6 min | 3 min |
 | 02-parser-unit-tests | 2 | 3 min | 1.5 min |
 | 03-graph-unit-tests | 2 | 7 min | 3.5 min |
+| 04-e2e-tests | 1/2 | 3 min | 3 min |
 
 **Recent Trend:**
 - Last 5 plans: 3 min
@@ -77,6 +78,9 @@ Recent decisions affecting current work:
 - [Phase 03-graph-unit-tests, Plan 02]: Two-workbook cross-file topology required for GRAPH-05 position tests — isolated single node may get (0,0) from Dagre
 - [Phase 03-graph-unit-tests, Plan 02]: GRAPH-06 overview count uses !n.data.isExternal filter defensively even when topology has no external refs
 - [Phase 03-graph-unit-tests, Plan 02]: GRAPH-07 edge count asserts exactly 2 named-range edges (source->NR + NR->consumer) replacing 1 direct edge
+- [Phase 04-e2e-tests, Plan 01]: data-testid added inline on existing elements — no wrapper divs, no structural changes
+- [Phase 04-e2e-tests, Plan 01]: Template literal testids (layout-${mode}, edge-filter-${kind}) auto-generate stable selectors from existing map() iterations
+- [Phase 04-e2e-tests, Plan 01]: All 3 SheetNode branches share data-testid="sheet-node" — tests differentiate by content if needed
 
 ### Pending Todos
 
@@ -84,12 +88,12 @@ None yet.
 
 ### Blockers/Concerns
 
-- [Phase 4]: Must verify FilePanel renders a hidden `<input type="file">` in the DOM before writing E2E upload tests. If only a pure div drop zone exists, the `DataTransfer` workaround (Playwright issue #10667) is required — adds complexity.
+- [Phase 4 — RESOLVED]: FilePanel does render a hidden `<input type="file" class="hidden">` — Playwright setInputFiles() will work directly, no DataTransfer workaround needed.
 - [Phase 2 — RESOLVED]: `extractReferences`, `extractNamedRanges`, and `buildExternalLinkMap` are now exported from `parser.ts` and fully covered by unit tests.
 - [Phase 3 — RESOLVED]: All 7 GRAPH requirements covered — 43 total unit tests passing.
 
 ## Session Continuity
 
 Last session: 2026-02-27
-Stopped at: Completed 03-graph-unit-tests/03-02-PLAN.md (Graph unit tests — GRAPH-05 through GRAPH-07, Phase 3 complete)
+Stopped at: Completed 04-e2e-tests/04-01-PLAN.md (Test instrumentation — data-testid attributes and not-excel.txt fixture)
 Resume file: None

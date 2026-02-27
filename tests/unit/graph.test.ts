@@ -3,7 +3,7 @@
 // Covers: GRAPH-01, GRAPH-02, GRAPH-03, GRAPH-04, GRAPH-05, GRAPH-06, GRAPH-07
 import { describe, it, expect } from 'vitest'
 import type { WorkbookFile, SheetReference, SheetWorkload } from '../../src/types'
-import { buildGraph, type NodeData, type EdgeData, type EdgeKind } from '../../src/lib/graph'
+import { buildGraph } from '../../src/lib/graph'
 
 // ── Shared factory ────────────────────────────────────────────────────────────
 

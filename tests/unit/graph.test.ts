@@ -276,3 +276,51 @@ describe('GRAPH-06: overview mode returns one node per uploaded workbook', () =>
     expect(uploadedNodes).toHaveLength(3)
   })
 })
+
+// ── GRAPH-07: named range nodes toggle with showNamedRanges flag ──────────────
+
+describe('GRAPH-07: named range nodes toggle with showNamedRanges flag', () => {
+  // Sheet1 has a named range ref pointing to Sheet2 — target sheet differs from source (no self-edge)
+  const namedRangeRef: SheetReference = {
+    targetWorkbook: null,
+    targetSheet: 'Sheet2',
+    cells: ['A1:A10'],
+    formula: 'MyRange',
+    sourceCell: 'A1',
+    namedRangeName: 'MyRange',
+  }
+  const wbWithNR = makeWorkbook('FileA.xlsx', [
+    { sheetName: 'Sheet1', refs: [namedRangeRef] },
+    { sheetName: 'Sheet2' },
+  ])
+
+  it('showNamedRanges=false: no named range nodes in output', () => {
+    const { nodes } = buildGraph([wbWithNR], 'graph', new Set(), false)
+    expect(nodes.some(n => n.data.isNamedRange)).toBe(false)
+  })
+
+  it('showNamedRanges=true: named range node appears in output', () => {
+    const { nodes } = buildGraph([wbWithNR], 'graph', new Set(), true)
+    expect(nodes.some(n => n.data.isNamedRange)).toBe(true)
+  })
+
+  it('showNamedRanges=true: named range node has correct namedRangeName', () => {
+    const { nodes } = buildGraph([wbWithNR], 'graph', new Set(), true)
+    const nrNode = nodes.find(n => n.data.isNamedRange)
+    expect(nrNode).toBeDefined()
+    expect(nrNode?.data.namedRangeName).toBe('MyRange')
+  })
+
+  it('showNamedRanges=true: named-range edges replace the direct edge', () => {
+    const { edges } = buildGraph([wbWithNR], 'graph', new Set(), true)
+    // Direct edge replaced by two 'named-range' edges (source->NR and NR->consumer)
+    expect(edges.every(e => e.data.edgeKind === 'named-range')).toBe(true)
+    expect(edges).toHaveLength(2)
+  })
+
+  it('showNamedRanges=false: a direct edge exists (not named-range kind)', () => {
+    const { edges } = buildGraph([wbWithNR], 'graph', new Set(), false)
+    expect(edges).toHaveLength(1)
+    expect(edges[0].data.edgeKind).not.toBe('named-range')
+  })
+})

@@ -12,6 +12,12 @@
   <a href="https://github.com/bizbrf/tangle/releases/latest">Download for Windows</a>
 </p>
 
+<p align="center">
+  <a href="https://github.com/bizbrf/tangle/actions/workflows/ci.yml">
+    <img src="https://github.com/bizbrf/tangle/actions/workflows/ci.yml/badge.svg" alt="CI" />
+  </a>
+</p>
+
 ---
 
 ## What it does

@@ -17,6 +17,9 @@ export type NodeData = {
   isNamedRange: boolean;
   namedRangeName?: string;
   namedRangeRef?: string;
+  isTable: boolean;
+  tableName?: string;
+  tableRef?: string;
   sheetCount?: number;
   outgoingCount: number;
   incomingCount: number;
@@ -24,7 +27,7 @@ export type NodeData = {
   [key: string]: unknown;
 };
 
-export type EdgeKind = 'internal' | 'cross-file' | 'external' | 'named-range';
+export type EdgeKind = 'internal' | 'cross-file' | 'external' | 'named-range' | 'table';
 
 export type EdgeData = {
   references: EdgeReference[];
@@ -55,6 +58,7 @@ export function buildGraph(
   layoutMode: LayoutMode = 'graph',
   hiddenFiles: Set<string> = new Set(),
   showNamedRanges: boolean = false,
+  showTables: boolean = false,
 ): { nodes: Node<NodeData>[]; edges: Edge<EdgeData>[] } {
   const visibleWorkbooks = hiddenFiles.size > 0
     ? workbooks.filter((wb) => !hiddenFiles.has(wb.name))
@@ -162,6 +166,29 @@ export function buildGraph(
           const eid2 = edgeId(nrId, consumerId);
           if (!edgesMap.has(eid2)) {
             edgesMap.set(eid2, { references: [], refCount: 0, edgeKind: 'named-range' });
+          }
+          const ed2 = edgesMap.get(eid2)!;
+          ed2.references.push(edgeRef);
+          ed2.refCount = ed2.references.length;
+        } else if (showTables && ref.tableName) {
+          // Table: when toggle is ON, create intermediate table node + two edges
+          const tableId = `[table]${wb.name}::${ref.tableName}`;
+          if (!nodesMap.has(tableId)) {
+            nodesMap.set(tableId, makeTableNode(tableId, wb.name, ref.tableName, ref.cells.join(', '), ref.targetSheet));
+          }
+          // Edge 1: data source → table node (table kind)
+          const eid1 = edgeId(dataSourceId, tableId);
+          if (!edgesMap.has(eid1)) {
+            edgesMap.set(eid1, { references: [], refCount: 0, edgeKind: 'table' });
+          }
+          const ed1 = edgesMap.get(eid1)!;
+          ed1.references.push(edgeRef);
+          ed1.refCount = ed1.references.length;
+
+          // Edge 2: table node → consumer (table kind)
+          const eid2 = edgeId(tableId, consumerId);
+          if (!edgesMap.has(eid2)) {
+            edgesMap.set(eid2, { references: [], refCount: 0, edgeKind: 'table' });
           }
           const ed2 = edgesMap.get(eid2)!;
           ed2.references.push(edgeRef);
@@ -398,6 +425,7 @@ function buildOverviewGraph(
           isExternal: false,
           isFileNode: true,
           isNamedRange: false,
+          isTable: false,
           outgoingCount: 0,
           incomingCount: 0,
           workload: null,
@@ -432,6 +460,7 @@ function buildOverviewGraph(
               isExternal: !targetIsUploaded,
               isFileNode: true,
               isNamedRange: false,
+              isTable: false,
               outgoingCount: 0,
               incomingCount: 0,
               workload: null,
@@ -598,7 +627,7 @@ function makeSheetNode(id: string, workbookName: string, sheetName: string, work
     id,
     type: 'sheet',
     position: { x: 0, y: 0 },
-    data: { label: sheetName, workbookName, sheetName, isExternal: false, isFileNode: false, isNamedRange: false, outgoingCount: 0, incomingCount: 0, workload },
+    data: { label: sheetName, workbookName, sheetName, isExternal: false, isFileNode: false, isNamedRange: false, isTable: false, outgoingCount: 0, incomingCount: 0, workload },
   };
 }
 
@@ -608,7 +637,7 @@ function makeFileNode(id: string, workbookName: string): Node<NodeData> {
     id,
     type: 'sheet',
     position: { x: 0, y: 0 },
-    data: { label: displayName, workbookName, sheetName: displayName, isExternal: true, isFileNode: true, isNamedRange: false, outgoingCount: 0, incomingCount: 0, workload: null },
+    data: { label: displayName, workbookName, sheetName: displayName, isExternal: true, isFileNode: true, isNamedRange: false, isTable: false, outgoingCount: 0, incomingCount: 0, workload: null },
   };
 }
 
@@ -626,6 +655,29 @@ function makeNamedRangeNode(id: string, workbookName: string, name: string, cell
       isNamedRange: true,
       namedRangeName: name,
       namedRangeRef: `${targetSheet}!${cells}`,
+      isTable: false,
+      outgoingCount: 0,
+      incomingCount: 0,
+      workload: null,
+    },
+  };
+}
+
+function makeTableNode(id: string, workbookName: string, tableName: string, cells: string, targetSheet: string): Node<NodeData> {
+  return {
+    id,
+    type: 'sheet',
+    position: { x: 0, y: 0 },
+    data: {
+      label: tableName,
+      workbookName,
+      sheetName: tableName,
+      isExternal: false,
+      isFileNode: false,
+      isNamedRange: false,
+      isTable: true,
+      tableName,
+      tableRef: `${targetSheet}!${cells}`,
       outgoingCount: 0,
       incomingCount: 0,
       workload: null,

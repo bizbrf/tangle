@@ -199,7 +199,7 @@ export function FilePanel({ workbooks, onWorkbooksChange, onLocateFile, hiddenFi
 
       {/* Error */}
       {error && (
-        <p className="mx-3 mb-2 text-xs px-2 py-1.5 rounded-lg"
+        <p data-testid="upload-error" className="mx-3 mb-2 text-xs px-2 py-1.5 rounded-lg"
           style={{ color: '#e8445a', background: 'rgba(232,68,90,0.1)', border: '1px solid rgba(232,68,90,0.2)' }}>
           {error}
         </p>
@@ -229,6 +229,7 @@ export function FilePanel({ workbooks, onWorkbooksChange, onLocateFile, hiddenFi
             <div key={wb.id} className="mb-0.5">
               {/* File row */}
               <div
+                data-testid="file-list-item"
                 className="group relative flex items-center justify-between rounded-lg px-2.5 py-2 cursor-pointer transition-all duration-150"
                 style={{ color: '#7b8799' }}
                 onMouseEnter={(e) => {
@@ -258,6 +259,7 @@ export function FilePanel({ workbooks, onWorkbooksChange, onLocateFile, hiddenFi
                 <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity ml-1 shrink-0">
                   {onToggleHidden && (
                     <button
+                      data-testid="eye-toggle"
                       className="rounded p-0.5"
                       style={{ color: hiddenFiles?.has(wb.name) ? '#e8445a' : '#4a5568' }}
                       onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.color = hiddenFiles?.has(wb.name) ? '#e8445a' : '#7b8799')}
@@ -298,6 +300,7 @@ export function FilePanel({ workbooks, onWorkbooksChange, onLocateFile, hiddenFi
                   {wb.sheets.map((sheet) => (
                     <div
                       key={sheet.sheetName}
+                      data-testid="sheet-list-item"
                       className="flex items-center gap-2 px-2.5 py-1.5 rounded-md transition-all duration-150 cursor-default"
                       style={{ color: '#4a5568' }}
                       onMouseEnter={(e) => {

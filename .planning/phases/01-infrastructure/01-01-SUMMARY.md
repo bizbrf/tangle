@@ -82,7 +82,7 @@ Each task was committed atomically:
 1. **Task 1: Install Vitest and create vitest.config.ts** - `c165794` (chore)
 2. **Task 2: Update TypeScript configs and ESLint for test files** - `89e989c` (chore)
 
-**Plan metadata:** _(final commit hash added after docs commit)_
+**Plan metadata:** `9ec1af9` (docs: complete plan)
 
 ## Files Created/Modified
 - `vitest.config.ts` - Vitest runner config; node environment, xlsx inline, v8 coverage on src/lib/**

@@ -26,3 +26,8 @@ src-tauri/target/
 claude_testing/
 .claude/
 CLAUDE.md
+
+# Test output
+coverage/
+playwright-report/
+test-results/

@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: unknown
-last_updated: "2026-02-27T18:24:40Z"
+last_updated: "2026-02-27T18:30:00Z"
 progress:
   total_phases: 4
   completed_phases: 4
-  total_plans: 9
-  completed_plans: 9
+  total_plans: 10
+  completed_plans: 10
 ---
 
 # Project State
@@ -23,18 +23,18 @@ See: .planning/PROJECT.md (updated 2026-02-27)
 ## Current Position
 
 Phase: 4 of 4 complete (E2E Tests)
-Plan: 2 of 2 in phase 04 (04-02 complete — ALL PLANS DONE)
-Status: All phases complete — full E2E + unit test coverage delivered
-Last activity: 2026-02-27 — Completed 04-02: E2E helpers module + upload spec (E2E-01 through E2E-04)
+Plan: 3 of 3 in phase 04 (04-03 complete — ALL PLANS DONE)
+Status: All phases complete — full E2E + unit test coverage delivered (17 E2E tests passing)
+Last activity: 2026-02-27 — Completed 04-03: Interaction, detail panel, and error handling tests (E2E-05 through E2E-15)
 
 Progress: [██████████] 100%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 9
+- Total plans completed: 10
 - Average duration: 3 min
-- Total execution time: ~20 min
+- Total execution time: ~25 min
 
 **By Phase:**
 
@@ -43,7 +43,7 @@ Progress: [██████████] 100%
 | 01-infrastructure | 2 | 6 min | 3 min |
 | 02-parser-unit-tests | 2 | 3 min | 1.5 min |
 | 03-graph-unit-tests | 2 | 7 min | 3.5 min |
-| 04-e2e-tests | 2/2 | 6 min | 3 min |
+| 04-e2e-tests | 3/3 | 11 min | 3.7 min |
 
 **Recent Trend:**
 - Last 5 plans: 3 min
@@ -84,6 +84,9 @@ Recent decisions affecting current work:
 - [Phase 04-e2e-tests, Plan 02]: ESM-compatible __dirname via fileURLToPath(import.meta.url) — CommonJS __dirname is undefined in Playwright ESM context
 - [Phase 04-e2e-tests, Plan 02]: waitForNodes() uses .first().waitFor({ state: 'visible' }) — works for any upload regardless of node count
 - [Phase 04-e2e-tests, Plan 02]: toHaveCount(2) on file-list-item for E2E-04 — Playwright auto-retries until count matches
+- [Phase 04-e2e-tests, Plan 03]: E2E-05 must use cross-sheet.xlsx not external-ref.xlsx — external-ref has same node count in graph and overview modes (2 each: 1 sheet + 1 external file node)
+- [Phase 04-e2e-tests, Plan 03]: E2E-06 toggle round-trip verified via not.toHaveCount(edgesBefore) then toHaveCount(edgesBefore) — no fixed timeouts
+- [Phase 04-e2e-tests, Plan 03]: E2E-12 edge click: try .react-flow__edge-label first (multi-ref), fallback to .react-flow__edge with force:true
 
 ### Pending Todos
 
@@ -98,5 +101,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-27
-Stopped at: Completed 04-e2e-tests/04-02-PLAN.md (E2E helpers module + upload spec — ALL PLANS COMPLETE)
+Stopped at: Completed 04-e2e-tests/04-03-PLAN.md (interaction, detail panel, error handling tests — ALL 15 E2E REQUIREMENTS COMPLETE)
 Resume file: None

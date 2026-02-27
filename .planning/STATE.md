@@ -8,7 +8,7 @@ progress:
   total_phases: 1
   completed_phases: 0
   total_plans: 3
-  completed_plans: 1
+  completed_plans: 2
 ---
 
 # Project State
@@ -23,24 +23,24 @@ See: .planning/PROJECT.md (updated 2026-02-27)
 ## Current Position
 
 Phase: 1 of 4 (Infrastructure)
-Plan: 1 of TBD in current phase (01-01 complete)
+Plan: 3 of TBD in current phase (01-03 complete)
 Status: In progress
-Last activity: 2026-02-27 — Completed 01-01: Vitest test runner setup
+Last activity: 2026-02-27 — Completed 01-03: Test fixtures and Vitest smoke test
 
-Progress: [░░░░░░░░░░] ~5%
+Progress: [█░░░░░░░░░] ~10%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 1
+- Total plans completed: 2
 - Average duration: 3 min
-- Total execution time: 3 min
+- Total execution time: 6 min
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 01-infrastructure | 1 | 3 min | 3 min |
+| 01-infrastructure | 2 | 6 min | 3 min |
 
 **Recent Trend:**
 - Last 5 plans: 3 min
@@ -59,6 +59,9 @@ Recent decisions affecting current work:
 - [Pre-phase]: Playwright over Cypress — better Vite integration, TypeScript-native, `setInputFiles()` for file upload
 - [Pre-phase]: Programmatic test fixtures via SheetJS — readable, reproducible, CI-safe vs. opaque binary blobs
 - [Phase 01-infrastructure]: Vitest configured with server.deps.inline: ['xlsx'] for CJS/ESM compat; separate vitest.config.ts from vite.config.ts; node environment (not jsdom)
+- [Phase 01-infrastructure, Plan 03]: Explicit cell construction (ws['A1'] = { t:'n', v:0, f:'...' }) required for formula fixtures — aoa_to_sheet() never sets cell.f
+- [Phase 01-infrastructure, Plan 03]: Read-back verify() pattern in generate.ts — write buffer, re-read, count formula cells before writing to disk
+- [Phase 01-infrastructure, Plan 03]: Malformed fixture uses raw Buffer.from() — SheetJS always writes valid xlsx, corrupt bytes must be crafted manually
 
 ### Pending Todos
 
@@ -72,5 +75,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-27
-Stopped at: Completed 01-infrastructure/01-01-PLAN.md (Vitest test runner setup)
+Stopped at: Completed 01-infrastructure/01-03-PLAN.md (Test fixtures and Vitest smoke test)
 Resume file: None

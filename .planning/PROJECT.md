@@ -12,7 +12,7 @@ Users can reliably understand how their Excel workbooks reference each other —
 
 ### Validated
 
-<!-- Shipped and confirmed working in v1.0.2 -->
+<!-- Shipped and confirmed working -->
 
 - ✓ Upload `.xlsx`, `.xls`, `.xlsm`, `.xlsb` files via drag-drop or click — existing
 - ✓ Parse cross-sheet references (`SheetName!A1`, `'Sheet Name'!A1:B2`) — existing
@@ -27,36 +27,44 @@ Users can reliably understand how their Excel workbooks reference each other —
 - ✓ Sheet workload metrics (totalFormulas, withinSheetRefs, crossSheetRefs, crossFileRefs) — existing
 - ✓ Enhanced detail panel with workload grid, edge breakdown, Focus/Hide quick actions — existing
 - ✓ Tauri v2 native desktop wrapper (.exe) — existing
+- ✓ Unit tests for `parser.ts` — reference extraction, named ranges, external link resolution, error handling — v1.0
+- ✓ Unit tests for `graph.ts` — buildGraph(), layout functions, edge classification, named range toggle — v1.0
+- ✓ E2E tests for core upload + graph render flow — v1.0
+- ✓ E2E tests for feature interactions (focus mode, hide/show, layout switching, edge filters) — v1.0
+- ✓ E2E tests for error handling (bad file upload, unsupported format) — v1.0
+- ✓ Test fixtures — 7 `.xlsx` files covering edge cases (circular refs, external refs, named ranges, large workbook) — v1.0
 
 ### Active
 
-<!-- Testing milestone — making the app solid -->
+<!-- Next milestone — feature polish and quality improvements -->
 
-- [ ] Unit tests for `src/lib/parser.ts` — reference extraction, named ranges, external link resolution
-- [ ] Unit tests for error scenarios in parser — bad files, circular refs, malformed formulas, external refs
-- [ ] Unit tests for `src/lib/graph.ts` — buildGraph(), layout functions, edge classification
-- [ ] E2E tests for core upload + graph render flow
-- [ ] E2E tests for feature interactions (focus mode, hide/show, layout switching, edge filters)
-- [ ] E2E tests for error handling (bad file upload, unsupported format)
-- [ ] Test fixtures — sample `.xlsx` files covering edge cases (circular refs, large workbooks, external refs)
+- [ ] Named range / table node popout detail options in the detail panel
+- [ ] Coverage threshold enforcement (80%+ on parser.ts and graph.ts)
+- [ ] CI integration — tests run on every pull request (GitHub Actions)
 
 ### Out of Scope
 
 - Backend/server testing — app is fully client-side, no server to test
-- Visual regression testing — too brittle for v1 testing milestone
-- Performance benchmarks — noted concern but deferred beyond this milestone
+- Visual regression testing — too brittle for current stage
+- Performance benchmarks — deferred, no user-reported perf issues
 - Mobile/cross-browser E2E matrix — Windows desktop is primary target
+- Tauri E2E via WebdriverIO — complexity not justified yet
 
 ## Context
 
-Tangle has 10 shipped features and zero automated tests. The parser (`src/lib/parser.ts`) is the most critical and most complex component — it uses SheetJS and multiple regex patterns to extract references. The graph builder (`src/lib/graph.ts`) has complex logic for three layout modes and edge classification. Both are pure TypeScript functions that are highly testable in isolation.
+Tangle has 10 shipped features and a complete test suite (v1.0). The parser (`src/lib/parser.ts`) and graph builder (`src/lib/graph.ts`) are covered by Vitest unit tests. The full upload-to-graph pipeline is covered by 17 Playwright E2E tests.
 
-**Current error handling strategy:** Silent failures with try/catch in `parseWorkbook()`; regex-based extraction degrades gracefully but behavior on truly malformed inputs is unverified.
+**Current test state:**
+- `npm test` — 43 unit tests passing (Vitest)
+- `npm run test:e2e` — 17 E2E tests passing (Playwright)
+- `npm run test:coverage` — HTML coverage report via @vitest/coverage-v8
+- 7 programmatic `.xlsx` fixtures in `tests/fixtures/`
 
-**Tech implications:**
-- Vite is in use → Vitest is the natural unit test runner (zero config, same transform pipeline)
-- React 19 + TypeScript → Playwright is the right E2E tool (Vite-aware, excellent TypeScript support)
-- No test infrastructure exists yet (no test runner, no fixtures, no CI test step)
+**Tech stack:**
+- Vite + React 19 + TypeScript
+- Vitest (unit tests, `vitest.config.ts` separate from `vite.config.ts`)
+- Playwright (E2E, Chromium, dev server via `webServer` config)
+- SheetJS xlsx, @xyflow/react v12, Tailwind CSS v4, Tauri v2
 
 ## Constraints
 
@@ -68,9 +76,12 @@ Tangle has 10 shipped features and zero automated tests. The parser (`src/lib/pa
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Vitest over Jest | Same Vite transform pipeline, faster, zero config for Vite projects | — Pending |
-| Playwright over Cypress | Better Vite integration, TypeScript-native, supports Tauri WebView if needed | — Pending |
-| Programmatic test fixtures | Create `.xlsx` files via SheetJS scripts rather than shipping binary fixtures | — Pending |
+| Vitest over Jest | Same Vite transform pipeline, faster, zero config for Vite projects | ✓ Good — zero config friction, fast |
+| Playwright over Cypress | Better Vite integration, TypeScript-native, supports Tauri WebView if needed | ✓ Good — webServer auto-start worked cleanly |
+| Programmatic test fixtures | Create `.xlsx` files via SheetJS scripts rather than shipping binary fixtures | ✓ Good — readable, reproducible, easy to extend |
+| `vitest.config.ts` separate from `vite.config.ts` | Avoids TypeScript context conflicts between browser and test (node/jsdom) environments | ✓ Good — resolved TS errors cleanly |
+| `server.deps.inline: ['xlsx']` | SheetJS uses CJS dynamic requires that Vite's ESM transform breaks | ✓ Good — the only fix that works reliably |
+| `data-testid` attributes for E2E targeting | Decoupled from CSS classes and text content — stable selectors | ✓ Good — zero selector breakage across all 17 tests |
 
 ---
-*Last updated: 2026-02-27 after initialization*
+*Last updated: 2026-02-27 after v1.0 milestone*

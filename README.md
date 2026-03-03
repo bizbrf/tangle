@@ -30,7 +30,7 @@ Drop `.xlsx` files into Tangle and instantly see how sheets reference each other
 
 - **Cross-sheet references** — `Sheet1!A1`, `'Sheet Name'!A1:B2`
 - **Cross-file references** — `[Workbook.xlsx]Sheet!A1`, `'[File Name.xlsx]Sheet'!A1`
-- **No data leaves your machine** — everything is parsed and rendered client-side
+- **No data leaves your machine** — everything is parsed and rendered client-side ([security details](SECURITY.md))
 
 ## Quick start
 
@@ -162,6 +162,12 @@ src/
   App.tsx         # Root layout
 src-tauri/        # Tauri (Rust) desktop wrapper
 ```
+
+## Security & data privacy
+
+Tangle processes all Excel data locally — nothing is uploaded to a server. See
+**[SECURITY.md](SECURITY.md)** for a full data security review including data
+flow diagrams, dependency audit, and Tauri permission analysis.
 
 ## License
 

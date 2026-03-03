@@ -321,6 +321,49 @@ function makeWideFixture(): void {
   writeFileSync(join(OUT_DIR, 'wide.xlsx'), buf)
 }
 
+// Fixture 12: Unicode filename — simple cross-sheet workbook stored with a Unicode name
+function makeUnicodeNameFixture(): void {
+  const wb = XLSX.utils.book_new()
+  const sheet1 = XLSX.utils.aoa_to_sheet([['placeholder']])
+  sheet1['A1'] = { t: 'n', v: 0, f: 'Sheet2!A1' }
+  const sheet2 = XLSX.utils.aoa_to_sheet([['source']])
+  XLSX.utils.book_append_sheet(wb, sheet1, 'Sheet1')
+  XLSX.utils.book_append_sheet(wb, sheet2, 'Sheet2')
+  const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }) as Buffer
+  verify(buf, 1, 'unicode-name')
+  // Write with a Unicode filename so upload tests can use it
+  writeFileSync(join(OUT_DIR, '财务数据.xlsx'), buf)
+  console.log('[unicode-name] OK — written as 财务数据.xlsx')
+}
+
+// Fixture 13: Structured references — TableName[Column] and [@Column] formulas
+function makeStructuredRefFixture(): void {
+  const wb = XLSX.utils.book_new()
+
+  // Sheet with regular cross-sheet formula (SheetJS doesn't support table structured refs as .f,
+  // so we store them as formula strings — the parser reads cell.f directly)
+  const data = XLSX.utils.aoa_to_sheet([['placeholder', 'placeholder', 'placeholder']])
+  // Structured reference formulas stored as formula strings
+  data['A1'] = { t: 'n', v: 0, f: 'Sales[Amount]' }
+  data['B1'] = { t: 'n', v: 0, f: '[@Price]*[@Qty]' }
+  data['C1'] = { t: 'n', v: 0, f: 'Sheet2!B1' }
+  data['!ref'] = 'A1:C1'
+
+  const sheet2 = XLSX.utils.aoa_to_sheet([['placeholder']])
+  sheet2['B1'] = { t: 'n', v: 0, f: 'Sheet3!A1' }
+  sheet2['!ref'] = 'A1:B1'
+
+  const sheet3 = XLSX.utils.aoa_to_sheet([['source value']])
+
+  XLSX.utils.book_append_sheet(wb, data, 'Sheet1')
+  XLSX.utils.book_append_sheet(wb, sheet2, 'Sheet2')
+  XLSX.utils.book_append_sheet(wb, sheet3, 'Sheet3')
+
+  const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }) as Buffer
+  verify(buf, 3, 'structured-ref')
+  writeFileSync(join(OUT_DIR, 'structured-ref.xlsx'), buf)
+}
+
 // Run all generators
 makeCrossSheetFixture()
 makeExternalRefFixture()
@@ -333,4 +376,6 @@ makeFinanceModelFixture()
 makeHubAndSpokeFixture()
 makeNamedRangesHeavyFixture()
 makeWideFixture()
+makeUnicodeNameFixture()
+makeStructuredRefFixture()
 console.log('All fixtures generated successfully.')

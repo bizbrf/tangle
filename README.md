@@ -30,8 +30,8 @@ Drop `.xlsx` files into Tangle and instantly see how sheets reference each other
 
 - **Cross-sheet references** — `Sheet1!A1`, `'Sheet Name'!A1:B2`
 - **Cross-file references** — `[Workbook.xlsx]Sheet!A1`, `'[File Name.xlsx]Sheet'!A1`
-- **No data leaves your machine** — everything is parsed and rendered client-side ([security details](SECURITY.md))
-
+- **No data leaves your machine** — everything is parsed and rendered client-side
+ test
 ## Quick start
 
 1. Open **[bizbrf.github.io/tangle](https://bizbrf.github.io/tangle)** in your browser.

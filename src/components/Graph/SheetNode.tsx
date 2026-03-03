@@ -9,6 +9,16 @@ export function SheetNode({ data, selected }: NodeProps<Node<NodeData>>) {
   const isExt = data.isExternal;
   const accent = isExt ? C.amber : C.accent;
   const accentGlow = isExt ? C.amberGlow : C.accentGlow;
+  const isPinned = !!data.pinned;
+  const pinBadge = isPinned ? (
+    <div style={{
+      position: 'absolute', top: 6, right: 8,
+      fontSize: 9, fontWeight: 700, letterSpacing: '0.08em',
+      color: C.textMuted, textTransform: 'uppercase',
+    }}>
+      Pin
+    </div>
+  ) : null;
 
   const containerStyle: React.CSSProperties = {
     background: selected ? C.surfaceRaised : hovered ? '#161b25' : C.surface,
@@ -72,6 +82,7 @@ export function SheetNode({ data, selected }: NodeProps<Node<NodeData>>) {
           transition: 'background 0.15s',
           boxShadow: selected ? `0 0 8px ${C.violetGlow}` : 'none',
         }} />
+        {pinBadge}
 
         <Handle type="target" position={Position.Left} style={tblHandleStyle} />
 
@@ -163,6 +174,7 @@ export function SheetNode({ data, selected }: NodeProps<Node<NodeData>>) {
           transition: 'background 0.15s',
           boxShadow: selected ? `0 0 8px ${C.emeraldGlow}` : 'none',
         }} />
+        {pinBadge}
 
         <Handle type="target" position={Position.Left} style={nrHandleStyle} />
 
@@ -312,6 +324,7 @@ export function SheetNode({ data, selected }: NodeProps<Node<NodeData>>) {
         transition: 'background 0.15s',
         boxShadow: selected ? `0 0 8px ${accentGlow}` : 'none',
       }} />
+      {pinBadge}
 
       <Handle type="target" position={Position.Left} style={handleStyle} />
 
@@ -328,7 +341,7 @@ export function SheetNode({ data, selected }: NodeProps<Node<NodeData>>) {
         textOverflow: 'ellipsis',
         whiteSpace: 'nowrap',
       }}>
-        {stripExcelExt(data.workbookName)}
+        {stripExcelExt(data.displayName ?? data.workbookName)}
       </div>
 
       {/* Sheet name */}

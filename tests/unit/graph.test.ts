@@ -17,6 +17,7 @@ function makeWorkbook(
 ): WorkbookFile {
   return {
     id: name,
+    displayName: name,
     name,
     namedRanges: [],
     tables: [],

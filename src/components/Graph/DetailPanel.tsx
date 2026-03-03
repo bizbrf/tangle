@@ -13,9 +13,10 @@ interface DetailPanelProps {
   onToggleHidden?: (workbookName: string) => void;
   hiddenFiles?: Set<string>;
   allEdges: Edge<EdgeData>[];
+  onTogglePin?: (nodeId: string) => void;
 }
 
-export function DetailPanel({ selectedNodes, selectedEdge, onClose, onFocus, focusNodeId, onToggleHidden, hiddenFiles, allEdges }: DetailPanelProps) {
+export function DetailPanel({ selectedNodes, selectedEdge, onClose, onFocus, focusNodeId, onToggleHidden, hiddenFiles, allEdges, onTogglePin }: DetailPanelProps) {
   const node = selectedNodes.length === 1 ? selectedNodes[0] : null;
 
   // Compute edge kind breakdown for single-node selection (must be before early return)
@@ -226,7 +227,7 @@ export function DetailPanel({ selectedNodes, selectedEdge, onClose, onFocus, foc
             )}
 
             {/* Quick actions */}
-            <div style={{ display: 'flex', gap: 8 }}>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               <button
                 onClick={() => { if (focusNodeId !== node.id) onFocus(node.id); }}
                 disabled={focusNodeId === node.id}
@@ -240,6 +241,20 @@ export function DetailPanel({ selectedNodes, selectedEdge, onClose, onFocus, foc
                 </svg>
                 {focusNodeId === node.id ? 'Focused' : 'Focus'}
               </button>
+              {onTogglePin && (
+                <button
+                  data-testid="pin-toggle"
+                  onClick={() => onTogglePin(node.id)}
+                  style={actionBtnStyle(!!node.data.pinned)}
+                  onMouseEnter={(e) => { if (!node.data.pinned) (e.currentTarget as HTMLElement).style.color = C.textPrimary; }}
+                  onMouseLeave={(e) => { if (!node.data.pinned) (e.currentTarget as HTMLElement).style.color = C.textSecondary; }}
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M16 3l5 5-7.5 7.5M16 3l-2.5 7.5M16 3l5 5M8 21l-5 0 5-5 5 5-5 0z" />
+                  </svg>
+                  {node.data.pinned ? 'Pinned' : 'Pin'}
+                </button>
+              )}
               {onToggleHidden && (() => {
                 const isHidden = !!hiddenFiles?.has(node.data.workbookName);
                 return (

@@ -31,6 +31,18 @@ import { EdgeKindFilterBar, type EdgeKindFilterState } from './EdgeKindFilterBar
 import { Legend } from './Legend';
 import { EmptyState } from './EmptyState';
 
+function initialLayoutMode(): LayoutMode {
+  if (typeof window === 'undefined') return 'graph';
+  const param = new URL(window.location.href).searchParams.get('layout');
+  return param === 'grouped' || param === 'overview' ? param : 'graph';
+}
+
+function initialLayoutDirection(): LayoutDirection {
+  if (typeof window === 'undefined') return 'LR';
+  const param = new URL(window.location.href).searchParams.get('dir');
+  return param === 'TB' ? 'TB' : 'LR';
+}
+
 // ── Node & edge type registries ──────────────────────────────────────────────
 
 const nodeTypes = { sheet: SheetNode, cluster: ClusterNode };
@@ -52,8 +64,10 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
   const [selectedNodes, setSelectedNodes] = useState<Node<NodeData>[]>([]);
   const [selectedEdge, setSelectedEdge] = useState<Edge<EdgeData> | null>(null);
   const [selectedNodeIds, setSelectedNodeIds] = useState<Set<string>>(new Set());
-  const [layoutMode, setLayoutMode] = useState<LayoutMode>('graph');
-  const [layoutDirection, setLayoutDirection] = useState<LayoutDirection>('LR');
+  const [layoutMode, setLayoutMode] = useState<LayoutMode>(initialLayoutMode);
+  const [layoutDirection, setLayoutDirection] = useState<LayoutDirection>(initialLayoutDirection);
+  const [layoutVersion, setLayoutVersion] = useState(0);
+  const [hasPinned, setHasPinned] = useState(false);
   const [edgeKindFilter, setEdgeKindFilter] = useState<EdgeKindFilterState>({
     internal: true, 'cross-file': true, external: true, 'named-range': true, table: true,
   });
@@ -64,22 +78,56 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
   const [focusDirection, setFocusDirection] = useState<'both' | 'upstream' | 'downstream'>('both');
   const { fitView } = useReactFlow();
   const highlightTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const pinnedPositionsRef = useRef<Map<string, { x: number; y: number }>>(new Map());
 
   // Check if any loaded workbook has named ranges / Excel tables (for showing toggles)
   const hasNamedRanges = useMemo(() => workbooks.some((wb) => wb.namedRanges.length > 0), [workbooks]);
   const hasTables = useMemo(() => workbooks.some((wb) => wb.tables.length > 0), [workbooks]);
 
   useEffect(() => {
-    const { nodes: n, edges: e } = buildGraph(workbooks, layoutMode, hiddenFiles, showNamedRanges, showTables, layoutDirection);
-    setNodes(n);
+    if (typeof window === 'undefined') return;
+    const url = new URL(window.location.href);
+    url.searchParams.set('layout', layoutMode);
+    url.searchParams.set('dir', layoutDirection);
+    window.history.replaceState(null, '', url);
+  }, [layoutMode, layoutDirection]);
+
+  useEffect(() => {
+    const { nodes: n, edges: e } = buildGraph(
+      workbooks,
+      layoutMode,
+      hiddenFiles,
+      showNamedRanges,
+      showTables,
+      layoutDirection,
+    );
+    const availableIds = new Set(n.map((node) => node.id));
+    for (const id of Array.from(pinnedPositionsRef.current.keys())) {
+      if (!availableIds.has(id)) {
+        pinnedPositionsRef.current.delete(id);
+      }
+    }
+    const withPins = n.map((node) => {
+      const pinned = pinnedPositionsRef.current.get(node.id);
+      if (pinned) {
+        return {
+          ...node,
+          position: pinned,
+          positionAbsolute: true,
+          draggable: false,
+          data: { ...node.data, pinned: true },
+        };
+      }
+      return { ...node, draggable: true, data: { ...node.data, pinned: false } };
+    });
+    setNodes(withPins);
     setEdges(e);
-    // Reset selection & focus when graph data changes — intentional synchronization
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setHasPinned(pinnedPositionsRef.current.size > 0);
     setSelectedNodes([]);
     setSelectedEdge(null);
     setSelectedNodeIds(new Set());
     setFocusNodeId(null);
-  }, [workbooks, layoutMode, layoutDirection, hiddenFiles, showNamedRanges, showTables, setNodes, setEdges]);
+  }, [workbooks, layoutMode, layoutDirection, hiddenFiles, showNamedRanges, showTables, setNodes, setEdges, layoutVersion]);
 
   // Highlight file: select its nodes and fit view to them
   useEffect(() => {
@@ -89,7 +137,6 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
       .map((n) => n.id);
     if (matchIds.length === 0) return;
 
-    // Sync selection to highlighted file — intentional synchronization
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setSelectedNodeIds(new Set(matchIds));
     setSelectedNodes(nodes.filter((n) => matchIds.includes(n.id)));
@@ -113,6 +160,27 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
     (connection: Connection) => setEdges((eds) => addEdge(connection, eds)),
     [setEdges],
   );
+
+  const reflowLayout = useCallback(() => {
+    setLayoutVersion((v) => v + 1);
+  }, []);
+
+  const togglePin = useCallback((nodeId: string) => {
+    setNodes((prev) => {
+      const next = prev.map((n) => {
+        if (n.id !== nodeId) return n;
+        const isPinned = pinnedPositionsRef.current.has(nodeId);
+        if (isPinned) {
+          pinnedPositionsRef.current.delete(nodeId);
+          return { ...n, draggable: true, positionAbsolute: false, data: { ...n.data, pinned: false } };
+        }
+        pinnedPositionsRef.current.set(nodeId, n.position);
+        return { ...n, draggable: false, positionAbsolute: true, data: { ...n.data, pinned: true } };
+      });
+      setHasPinned(pinnedPositionsRef.current.size > 0);
+      return next;
+    });
+  }, [setNodes]);
 
   // Focus mode: directional BFS to find N-hop neighbors
   // Edge direction: source → target (source provides data, target consumes)
@@ -240,6 +308,30 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
     setFocusNodeId(null);
   }
 
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      const key = e.key.toLowerCase();
+      if (key === 'g') setLayoutMode('graph');
+      if (key === 'o') setLayoutMode('overview');
+      if (key === 'u') setLayoutMode('grouped');
+      if (key === 'l') setLayoutDirection('LR');
+      if (key === 't') setLayoutDirection('TB');
+      if (key === 'f') {
+        e.preventDefault();
+        fitView({ padding: 0.25, duration: 400 });
+      }
+      if (key === 'r') {
+        e.preventDefault();
+        reflowLayout();
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [fitView, reflowLayout, setLayoutDirection, setLayoutMode]);
+
   if (workbooks.length === 0) return <EmptyState />;
 
   return (
@@ -291,6 +383,8 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
         layoutDirection={layoutDirection}
         onDirectionChange={setLayoutDirection}
         onFitView={() => fitView({ padding: 0.25, duration: 400 })}
+        onReorganize={reflowLayout}
+        hasPinned={hasPinned}
       />
       <EdgeKindFilterBar filter={edgeKindFilter} onFilterChange={setEdgeKindFilter} showNamedRanges={showNamedRanges} showTables={showTables} />
 
@@ -425,6 +519,7 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
         onToggleHidden={onToggleHidden}
         hiddenFiles={hiddenFiles}
         allEdges={edges}
+        onTogglePin={togglePin}
       />
     </div>
   );

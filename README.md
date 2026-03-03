@@ -137,6 +137,13 @@ npm run tauri:build
 
 The installer will be at `src-tauri/target/release/bundle/nsis/`.
 
+## Testing
+
+- Lint: `npm run lint`
+- Unit: `npm test`
+- Build: `npm run build`
+- E2E: `npm run test:e2e` (Chromium, Firefox, WebKit; captures trace/video on failure to `test-results/`)
+
 ## Tech stack
 
 | Layer | Technology |

@@ -152,6 +152,32 @@ export function extractTables(wb: XLSX.WorkBook): ExcelTable[] {
   return tables;
 }
 
+function inferTablesFromFormulas(wb: XLSX.WorkBook): ExcelTable[] {
+  const inferred: ExcelTable[] = [];
+  const seen = new Set<string>();
+  const TABLE_NAME_RE = /\b([A-Za-z_][\w.]*)\[/g;
+  for (const sheetName of wb.SheetNames) {
+    const ws = wb.Sheets[sheetName];
+    if (!ws) continue;
+    for (const [cellAddr, cell] of Object.entries(ws)) {
+      if (cellAddr.startsWith('!') || !cell || typeof cell !== 'object') continue;
+      const formula: string | undefined = (cell as XLSX.CellObject).f;
+      if (!formula) continue;
+      let m: RegExpExecArray | null;
+      TABLE_NAME_RE.lastIndex = 0;
+      while ((m = TABLE_NAME_RE.exec(formula)) !== null) {
+        const name = m[1];
+        if (!name) continue;
+        const key = name.toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        inferred.push({ name, ref: 'A1', targetSheet: sheetName, cells: 'A1' });
+      }
+    }
+  }
+  return inferred;
+}
+
 // ── Reference extraction ────────────────────────────────────────────────────
 
 export function extractReferences(
@@ -276,11 +302,8 @@ export function extractReferences(
         const matchedName = tMatch[1] ?? tMatch[0].replace(/\[$/, '');
         const table = tableMap.get(matchedName.toLowerCase());
         if (!table) continue;
-        // Tables are local to the workbook; skip if same sheet as source
-        if (table.targetSheet.toLowerCase() === selfSheet) {
-          workload.withinSheetRefs++;
-          continue;
-        }
+        const sameSheet = table.targetSheet.toLowerCase() === selfSheet;
+        if (sameSheet) workload.withinSheetRefs++;
         const key = `TBL|${table.name}|${table.targetSheet}`;
         if (!byTarget.has(key)) {
           byTarget.set(key, {
@@ -326,16 +349,28 @@ export function parseWorkbook(file: File, fileId: string): Promise<WorkbookFile>
           namedRangeMap.set(nr.name.toLowerCase(), nr);
         }
         const tables = extractTables(wb);
+        const inferredTables = inferTablesFromFormulas(wb);
+        const mergedTableMap = new Map<string, ExcelTable>();
+        for (const t of tables) mergedTableMap.set(t.name.toLowerCase(), t);
+        for (const t of inferredTables) if (!mergedTableMap.has(t.name.toLowerCase())) mergedTableMap.set(t.name.toLowerCase(), t);
+        const allTables = Array.from(mergedTableMap.values());
         // Build lookup map: lowercase name → ExcelTable
         const tableMap = new Map<string, ExcelTable>();
-        for (const t of tables) {
+        for (const t of allTables) {
           tableMap.set(t.name.toLowerCase(), t);
         }
         const sheets: ParsedSheet[] = wb.SheetNames.map((sheetName) => {
-          const { references, workload } = extractReferences(wb.Sheets[sheetName], sheetName, file.name, linkMap, namedRangeMap, tableMap);
+          const { references, workload } = extractReferences(
+            wb.Sheets[sheetName],
+            sheetName,
+            file.name,
+            linkMap,
+            namedRangeMap,
+            tableMap,
+          );
           return { workbookName: file.name, sheetName, references, workload };
         });
-        resolve({ id: fileId, name: file.name, sheets, namedRanges, tables });
+        resolve({ id: fileId, name: file.name, displayName: file.name, sheets, namedRanges, tables: allTables });
       } catch (err) {
         reject(err);
       }

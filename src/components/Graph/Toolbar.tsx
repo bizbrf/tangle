@@ -12,12 +12,14 @@ const DIRECTION_OPTIONS: { dir: LayoutDirection; label: string; icon: string }[]
   { dir: 'TB', label: 'TB', icon: '⟱' },
 ];
 
-export function Toolbar({ layoutMode, onLayoutChange, layoutDirection, onDirectionChange, onFitView }: {
+export function Toolbar({ layoutMode, onLayoutChange, layoutDirection, onDirectionChange, onFitView, onReorganize, hasPinned }: {
   layoutMode: LayoutMode;
   onLayoutChange: (m: LayoutMode) => void;
   layoutDirection: LayoutDirection;
   onDirectionChange: (d: LayoutDirection) => void;
   onFitView: () => void;
+  onReorganize: () => void;
+  hasPinned?: boolean;
 }) {
   return (
     <div style={{
@@ -35,6 +37,7 @@ export function Toolbar({ layoutMode, onLayoutChange, layoutDirection, onDirecti
             data-testid={`layout-${mode}`}
             key={mode}
             onClick={() => onLayoutChange(mode)}
+            aria-pressed={active}
             style={{
               display: 'flex', alignItems: 'center', gap: 5,
               padding: '5px 11px', borderRadius: 7, border: 'none', cursor: 'pointer',
@@ -64,6 +67,7 @@ export function Toolbar({ layoutMode, onLayoutChange, layoutDirection, onDirecti
                 data-testid={`direction-${dir}`}
                 key={dir}
                 onClick={() => onDirectionChange(dir)}
+                aria-pressed={active}
                 title={dir === 'LR' ? 'Left → Right layout' : 'Top → Bottom layout'}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 4,
@@ -90,7 +94,7 @@ export function Toolbar({ layoutMode, onLayoutChange, layoutDirection, onDirecti
       <button
         data-testid="fit-view"
         onClick={onFitView}
-        title="Fit graph to view"
+        title="Fit graph to view (F)"
         style={{
           display: 'flex', alignItems: 'center', gap: 4,
           padding: '5px 9px', borderRadius: 7, border: 'none', cursor: 'pointer',
@@ -104,6 +108,25 @@ export function Toolbar({ layoutMode, onLayoutChange, layoutDirection, onDirecti
       >
         <span style={{ fontSize: 13 }}>⊡</span>
         Fit
+      </button>
+
+      <button
+        data-testid="reorganize-layout"
+        onClick={onReorganize}
+        title={hasPinned ? 'Re-run layout (keeps pinned nodes) (R)' : 'Re-run layout (R)'}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 4,
+          padding: '5px 10px', borderRadius: 7, border: 'none', cursor: 'pointer',
+          fontSize: 11, fontWeight: 600,
+          background: 'transparent',
+          color: hasPinned ? C.accent : C.textSecondary,
+          transition: 'all 0.15s',
+        }}
+        onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = C.textPrimary; }}
+        onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = hasPinned ? C.accent : C.textSecondary; }}
+      >
+        <span style={{ fontSize: 13 }}>↻</span>
+        Organize
       </button>
     </div>
   );

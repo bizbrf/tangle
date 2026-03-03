@@ -11,6 +11,7 @@ export function stripExcelExt(name: string): string {
 export type NodeData = {
   label: string;
   workbookName: string;
+  displayName?: string;
   sheetName: string;
   isExternal: boolean;
   isFileNode: boolean;
@@ -24,6 +25,7 @@ export type NodeData = {
   outgoingCount: number;
   incomingCount: number;
   workload: SheetWorkload | null;
+  pinned?: boolean;
   [key: string]: unknown;
 };
 
@@ -65,6 +67,10 @@ export function buildGraph(
   const visibleWorkbooks = hiddenFiles.size > 0
     ? workbooks.filter((wb) => !hiddenFiles.has(wb.name))
     : workbooks;
+  const displayNameMap = new Map<string, string>();
+  for (const wb of workbooks) {
+    displayNameMap.set(wb.name, wb.displayName ?? wb.name);
+  }
   if (layoutMode === 'overview') return buildOverviewGraph(visibleWorkbooks);
   const uploadedSheetIds = new Set<string>();
   const uploadedWbNames = new Set<string>();
@@ -99,7 +105,10 @@ export function buildGraph(
       const id = sheetNodeId(wb.name, sheet.sheetName);
       uploadedSheetIds.add(id);
       if (!nodesMap.has(id)) {
-        nodesMap.set(id, makeSheetNode(id, wb.name, sheet.sheetName, workloadMap.get(id) ?? null));
+        nodesMap.set(
+          id,
+          makeSheetNode(id, wb.name, sheet.sheetName, workloadMap.get(id) ?? null, displayNameMap.get(wb.name)),
+        );
       }
     }
   }
@@ -126,16 +135,28 @@ export function buildGraph(
         if (!targetIsUploaded || !targetIsVisible) {
           dataSourceId = fileNodeId(resolvedTargetWb);
           if (!nodesMap.has(dataSourceId)) {
-            nodesMap.set(dataSourceId, makeFileNode(dataSourceId, resolvedTargetWb));
+            nodesMap.set(
+              dataSourceId,
+              makeFileNode(dataSourceId, resolvedTargetWb, displayNameMap.get(resolvedTargetWb)),
+            );
           }
         } else {
           dataSourceId = sheetNodeId(resolvedTargetWb, ref.targetSheet);
           if (!nodesMap.has(dataSourceId)) {
-            nodesMap.set(dataSourceId, makeSheetNode(dataSourceId, resolvedTargetWb, ref.targetSheet, workloadMap.get(dataSourceId) ?? null));
+            nodesMap.set(
+              dataSourceId,
+              makeSheetNode(
+                dataSourceId,
+                resolvedTargetWb,
+                ref.targetSheet,
+                workloadMap.get(dataSourceId) ?? null,
+                displayNameMap.get(resolvedTargetWb),
+              ),
+            );
           }
         }
 
-        if (dataSourceId === consumerId) continue;
+        if (!showNamedRanges && !showTables && dataSourceId === consumerId) continue;
 
         const edgeKind: EdgeKind = isSameWb
           ? 'internal'
@@ -399,10 +420,12 @@ function buildOverviewGraph(
 ): { nodes: Node<NodeData>[]; edges: Edge<EdgeData>[] } {
   const uploadedWbNames = new Set<string>();
   const normalizedWbName = new Map<string, string>();
+  const displayNameMap = new Map<string, string>();
   for (const wb of workbooks) {
     const key = normWb(wb.name);
     normalizedWbName.set(key, wb.name);
     uploadedWbNames.add(key);
+    displayNameMap.set(wb.name, wb.displayName ?? wb.name);
   }
   function resolveWbName(raw: string): string {
     return normalizedWbName.get(normWb(raw)) ?? raw;
@@ -415,7 +438,7 @@ function buildOverviewGraph(
   for (const wb of workbooks) {
     const id = fileNodeId(wb.name);
     if (!nodesMap.has(id)) {
-      const displayName = stripExcelExt(wb.name);
+      const displayName = stripExcelExt(wb.displayName ?? wb.name);
       nodesMap.set(id, {
         id,
         type: 'sheet',
@@ -423,6 +446,7 @@ function buildOverviewGraph(
         data: {
           label: displayName,
           workbookName: wb.name,
+          displayName: wb.displayName ?? wb.name,
           sheetName: displayName,
           sheetCount: wb.sheets.length,
           isExternal: false,
@@ -451,7 +475,7 @@ function buildOverviewGraph(
         const targetFileId = fileNodeId(resolvedTargetWb);
 
         if (!nodesMap.has(targetFileId)) {
-          const displayName = stripExcelExt(resolvedTargetWb);
+          const displayName = stripExcelExt(displayNameMap.get(resolvedTargetWb) ?? resolvedTargetWb);
           nodesMap.set(targetFileId, {
             id: targetFileId,
             type: 'sheet',
@@ -459,6 +483,7 @@ function buildOverviewGraph(
             data: {
               label: displayName,
               workbookName: resolvedTargetWb,
+              displayName: displayNameMap.get(resolvedTargetWb) ?? resolvedTargetWb,
               sheetName: displayName,
               isExternal: !targetIsUploaded,
               isFileNode: true,
@@ -552,6 +577,7 @@ export function computeClusterNodes(nodes: Node<NodeData>[]): Node<ClusterData>[
 
   for (const [wb, group] of groups.entries()) {
     if (group.length < 1) continue;
+    const displayLabel = stripExcelExt(group[0].data.displayName ?? wb);
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     for (const n of group) {
       minX = Math.min(minX, n.position.x);
@@ -570,7 +596,7 @@ export function computeClusterNodes(nodes: Node<NodeData>[]): Node<ClusterData>[
       selectable: false,
       draggable: false,
       data: {
-        label: stripExcelExt(wb),
+        label: displayLabel,
         workbookName: wb,
         width: w,
         height: h,
@@ -625,22 +651,52 @@ function edgeId(source: string, target: string): string {
   return `${source}->${target}`;
 }
 
-function makeSheetNode(id: string, workbookName: string, sheetName: string, workload: SheetWorkload | null): Node<NodeData> {
+function makeSheetNode(
+  id: string,
+  workbookName: string,
+  sheetName: string,
+  workload: SheetWorkload | null,
+  displayName?: string,
+): Node<NodeData> {
   return {
     id,
     type: 'sheet',
     position: { x: 0, y: 0 },
-    data: { label: sheetName, workbookName, sheetName, isExternal: false, isFileNode: false, isNamedRange: false, isTable: false, outgoingCount: 0, incomingCount: 0, workload },
+    data: {
+      label: sheetName,
+      workbookName,
+      displayName,
+      sheetName,
+      isExternal: false,
+      isFileNode: false,
+      isNamedRange: false,
+      isTable: false,
+      outgoingCount: 0,
+      incomingCount: 0,
+      workload,
+    },
   };
 }
 
-function makeFileNode(id: string, workbookName: string): Node<NodeData> {
-  const displayName = stripExcelExt(workbookName);
+function makeFileNode(id: string, workbookName: string, displayName?: string): Node<NodeData> {
+  const displayLabel = stripExcelExt(displayName ?? workbookName);
   return {
     id,
     type: 'sheet',
     position: { x: 0, y: 0 },
-    data: { label: displayName, workbookName, sheetName: displayName, isExternal: true, isFileNode: true, isNamedRange: false, isTable: false, outgoingCount: 0, incomingCount: 0, workload: null },
+    data: {
+      label: displayLabel,
+      workbookName,
+      displayName: displayName ?? workbookName,
+      sheetName: displayLabel,
+      isExternal: true,
+      isFileNode: true,
+      isNamedRange: false,
+      isTable: false,
+      outgoingCount: 0,
+      incomingCount: 0,
+      workload: null,
+    },
   };
 }
 

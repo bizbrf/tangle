@@ -1,6 +1,7 @@
 import type { Page } from '@playwright/test'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
+import * as XLSX from 'xlsx'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -19,6 +20,17 @@ export async function uploadFile(page: Page, filename: string): Promise<void> {
 export async function uploadFiles(page: Page, filenames: string[]): Promise<void> {
   const input = page.locator('input[type="file"]')
   await input.setInputFiles(filenames.map(fixturePath))
+}
+
+/** Upload an in-memory workbook with a custom filename */
+export async function uploadWorkbook(page: Page, name: string, workbook: XLSX.WorkBook): Promise<void> {
+  const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' }) as Buffer
+  const input = page.locator('input[type="file"]')
+  await input.setInputFiles({
+    name,
+    mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    buffer,
+  })
 }
 
 /** Wait for at least one sheet-node to be visible in the graph */

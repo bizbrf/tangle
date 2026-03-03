@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import type { WorkbookFile } from '../../types';
 import { parseWorkbook, EXCEL_EXTENSIONS } from '../../lib/parser';
+import { stripExcelExt } from '../../lib/graph';
 
 interface FilePanelProps {
   workbooks: WorkbookFile[];
@@ -87,9 +88,27 @@ export function FilePanel({ workbooks, onWorkbooksChange, onLocateFile, hiddenFi
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  const RESERVED_BASENAMES = new Set(['con', 'prn', 'aux', 'nul', 'com1', 'com2', 'com3', 'com4', 'com5', 'com6', 'com7', 'com8', 'com9', 'lpt1', 'lpt2', 'lpt3', 'lpt4', 'lpt5', 'lpt6', 'lpt7', 'lpt8', 'lpt9']);
+
   async function handleFiles(files: FileList | null) {
     if (!files || files.length === 0) return;
     setError(null);
+    const existingDisplayNames = new Set(workbooks.map((wb) => (wb.displayName ?? wb.name).toLowerCase()));
+    const existingNormalizedNames = new Set(workbooks.map((wb) => stripExcelExt(wb.name).toLowerCase()));
+    function nextDisplayName(fileName: string): string {
+      const extMatch = fileName.match(/(\.[^.]+)?$/);
+      const ext = extMatch?.[1] ?? '';
+      const base = stripExcelExt(fileName);
+      const safeBase = RESERVED_BASENAMES.has(base.toLowerCase()) ? `${base}-file` : base;
+      let candidate = `${safeBase}${ext}`;
+      let counter = 2;
+      while (existingDisplayNames.has(candidate.toLowerCase())) {
+        candidate = `${safeBase} (${counter})${ext}`;
+        counter++;
+      }
+      existingDisplayNames.add(candidate.toLowerCase());
+      return candidate;
+    }
     const excelFiles = Array.from(files).filter((f) =>
       EXCEL_EXTENSIONS.some((ext) => f.name.toLowerCase().endsWith(ext)),
     );
@@ -97,14 +116,39 @@ export function FilePanel({ workbooks, onWorkbooksChange, onLocateFile, hiddenFi
       setError('Only Excel files (.xlsx, .xls, .xlsm, .xlsb) are supported.');
       return;
     }
+    const collisions: string[] = [];
+    const reserved: string[] = [];
+    const allowed: { file: File; displayName: string }[] = [];
+    const batchNames = new Set<string>();
+    for (const f of excelFiles) {
+      const normalized = stripExcelExt(f.name).toLowerCase();
+      if (existingNormalizedNames.has(normalized) || batchNames.has(normalized)) {
+        collisions.push(f.name);
+        continue;
+      }
+      batchNames.add(normalized);
+      if (RESERVED_BASENAMES.has(stripExcelExt(f.name).toLowerCase())) {
+        reserved.push(f.name);
+      }
+      allowed.push({ file: f, displayName: nextDisplayName(f.name) });
+      existingNormalizedNames.add(normalized);
+    }
+    if (collisions.length > 0 || reserved.length > 0) {
+      const parts = [];
+      if (collisions.length > 0) parts.push(`Skipped duplicate filename(s): ${collisions.join(', ')}`);
+      if (reserved.length > 0) parts.push(`Reserved names adjusted for display: ${reserved.join(', ')}`);
+      setError(parts.join(' '));
+    }
+    if (allowed.length === 0) return;
     try {
       const parsed = await Promise.all(
-        excelFiles.map((f) => parseWorkbook(f, crypto.randomUUID())),
+        allowed.map(({ file }) => parseWorkbook(file, crypto.randomUUID())),
       );
-      onWorkbooksChange([...workbooks, ...parsed]);
+      const withDisplay = parsed.map((wb, idx) => ({ ...wb, displayName: allowed[idx].displayName }));
+      onWorkbooksChange([...workbooks, ...withDisplay]);
       setExpanded((prev) => {
         const next = new Set(prev);
-        parsed.forEach((wb) => next.add(wb.id));
+        withDisplay.forEach((wb) => next.add(wb.id));
         return next;
       });
     } catch {
@@ -252,7 +296,13 @@ export function FilePanel({ workbooks, onWorkbooksChange, onLocateFile, hiddenFi
                   <span style={{ color: '#e8445a', opacity: 0.7 }}>
                     <IconFile />
                   </span>
-                  <span className="text-sm font-medium truncate" style={{ opacity: hiddenFiles?.has(wb.name) ? 0.4 : 1 }}>{wb.name}</span>
+                  <span
+                    className="text-sm font-medium truncate"
+                    title={wb.displayName !== wb.name ? `${wb.displayName} (${wb.name})` : wb.name}
+                    style={{ opacity: hiddenFiles?.has(wb.name) ? 0.4 : 1 }}
+                  >
+                    {wb.displayName}
+                  </span>
                 </div>
                 <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity ml-1 shrink-0">
                   {onToggleHidden && (

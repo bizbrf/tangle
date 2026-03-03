@@ -285,7 +285,7 @@ function applyLayout(
   direction: LayoutDirection = 'LR',
   seed?: number,
 ): Node<NodeData>[] {
-  if (mode === 'grouped') return groupedLayout(nodes, edges, direction, seed);
+  if (mode === 'grouped') return groupedLayout(nodes, edges, direction);
   return dagreLayout(nodes, edges, direction, seed);
 }
 
@@ -319,7 +319,7 @@ function dagreLayout(
   });
 }
 
-function groupedLayout(nodes: Node<NodeData>[], edges: Edge<EdgeData>[], direction: LayoutDirection = 'LR', _seed?: number): Node<NodeData>[] {
+function groupedLayout(nodes: Node<NodeData>[], edges: Edge<EdgeData>[], direction: LayoutDirection = 'LR'): Node<NodeData>[] {
   const INTRA_VGAP = 100;
   const INTRA_PAD_X = 40;
   const INTRA_PAD_Y = 56; // top padding (room for cluster label)

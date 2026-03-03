@@ -209,8 +209,8 @@ describe('Performance Budgets', () => {
       const wb = parseWorkbook(new File([file], 'finance-model.xlsx'), 'test-id');
       const seed = 12345;
 
-      const { nodes: nodes1, edges: edges1 } = buildGraph([wb], 'graph', new Set(), false, false, 'LR', seed);
-      const { nodes: nodes2, edges: edges2 } = buildGraph([wb], 'graph', new Set(), false, false, 'LR', seed);
+      const { nodes: nodes1 } = buildGraph([wb], 'graph', new Set(), false, false, 'LR', seed);
+      const { nodes: nodes2 } = buildGraph([wb], 'graph', new Set(), false, false, 'LR', seed);
 
       // Check that positions match within ±1px
       expect(nodes1.length).toBe(nodes2.length);

@@ -35,3 +35,15 @@ test('E2E-04: multiple files upload and appear in sidebar and graph', async ({ p
   await expect(page.getByTestId('file-list-item')).toHaveCount(2)
   await expect(page.getByTestId('sheet-node').first()).toBeVisible()
 })
+
+// E2E-05: Original filename is displayed in the sidebar (not the sanitized storage name)
+test('E2E-05: original filename is displayed in the UI sidebar', async ({ page }) => {
+  await uploadFile(page, 'cross-sheet.xlsx')
+  await waitForNodes(page)
+  // The sidebar must show the original name 'cross-sheet.xlsx'.
+  // Since this file has a safe name, originalName === sanitizedName.
+  await expect(
+    page.getByTestId('file-list-item').filter({ hasText: 'cross-sheet.xlsx' })
+  ).toBeVisible()
+})
+

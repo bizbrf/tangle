@@ -35,6 +35,8 @@ export interface ParsedSheet {
 export interface WorkbookFile {
   id: string;
   name: string;
+  /** Original filename as provided by the user / OS (used for UI display). */
+  originalName: string;
   sheets: ParsedSheet[];
   namedRanges: NamedRange[];
   tables: ExcelTable[];

@@ -18,6 +18,7 @@ function makeWorkbook(
   return {
     id: name,
     name,
+    originalName: name,
     namedRanges: [],
     tables: [],
     sheets: sheets.map(({ sheetName, refs = [] }) => ({

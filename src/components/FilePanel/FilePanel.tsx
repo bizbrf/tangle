@@ -252,7 +252,7 @@ export function FilePanel({ workbooks, onWorkbooksChange, onLocateFile, hiddenFi
                   <span style={{ color: '#e8445a', opacity: 0.7 }}>
                     <IconFile />
                   </span>
-                  <span className="text-sm font-medium truncate" style={{ opacity: hiddenFiles?.has(wb.name) ? 0.4 : 1 }}>{wb.name}</span>
+                  <span className="text-sm font-medium truncate" style={{ opacity: hiddenFiles?.has(wb.name) ? 0.4 : 1 }}>{wb.originalName}</span>
                 </div>
                 <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity ml-1 shrink-0">
                   {onToggleHidden && (

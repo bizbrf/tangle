@@ -1,6 +1,6 @@
 // tests/unit/graph.test.ts
 // Environment: node (default from vitest.config.ts — no override needed)
-// Covers: GRAPH-01, GRAPH-02, GRAPH-03, GRAPH-04, GRAPH-05, GRAPH-06, GRAPH-07, GRAPH-08
+// Covers: GRAPH-01, GRAPH-02, GRAPH-03, GRAPH-04, GRAPH-05, GRAPH-06, GRAPH-07, GRAPH-08, GRAPH-09
 import { describe, it, expect } from 'vitest'
 import type { WorkbookFile, SheetReference, SheetWorkload } from '../../src/types'
 import { buildGraph } from '../../src/lib/graph'
@@ -371,5 +371,52 @@ describe('GRAPH-08: layout direction (LR vs TB) changes node positions', () => {
       expect(node.position.x).toBeGreaterThanOrEqual(0)
       expect(node.position.y).toBeGreaterThanOrEqual(0)
     }
+  })
+})
+
+// ── GRAPH-09: table nodes toggle with showTables flag ─────────────────────────
+
+describe('GRAPH-09: table nodes toggle with showTables flag', () => {
+  const tableRef: SheetReference = {
+    targetWorkbook: null,
+    targetSheet: 'Data',
+    cells: ['A1:B10'],
+    formula: 'SUM(SalesTable[Amount])',
+    sourceCell: 'A1',
+    tableName: 'SalesTable',
+  }
+  const wbWithTable = makeWorkbook('FileA.xlsx', [
+    { sheetName: 'Summary', refs: [tableRef] },
+    { sheetName: 'Data' },
+  ])
+
+  it('showTables=false: no table nodes in output', () => {
+    const { nodes } = buildGraph([wbWithTable], 'graph', new Set(), false, false)
+    expect(nodes.some(n => n.data.isTable)).toBe(false)
+  })
+
+  it('showTables=true: table node appears in output', () => {
+    const { nodes } = buildGraph([wbWithTable], 'graph', new Set(), false, true)
+    expect(nodes.some(n => n.data.isTable)).toBe(true)
+  })
+
+  it('showTables=true: table node has correct tableName', () => {
+    const { nodes } = buildGraph([wbWithTable], 'graph', new Set(), false, true)
+    const tblNode = nodes.find(n => n.data.isTable)
+    expect(tblNode).toBeDefined()
+    expect(tblNode?.data.tableName).toBe('SalesTable')
+  })
+
+  it('showTables=true: table edges replace the direct edge', () => {
+    const { edges } = buildGraph([wbWithTable], 'graph', new Set(), false, true)
+    // Direct edge replaced by two 'table' edges (source->table and table->consumer)
+    expect(edges.every(e => e.data!.edgeKind === 'table')).toBe(true)
+    expect(edges).toHaveLength(2)
+  })
+
+  it('showTables=false: a direct edge exists (not table kind)', () => {
+    const { edges } = buildGraph([wbWithTable], 'graph', new Set(), false, false)
+    expect(edges).toHaveLength(1)
+    expect(edges[0].data!.edgeKind).toBe('internal')
   })
 })

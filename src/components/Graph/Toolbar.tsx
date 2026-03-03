@@ -1,4 +1,4 @@
-import type { LayoutMode } from '../../lib/graph';
+import type { LayoutMode, LayoutDirection } from '../../lib/graph';
 import { C } from './constants';
 
 const LAYOUT_OPTIONS: { mode: LayoutMode; label: string; icon: string }[] = [
@@ -7,9 +7,17 @@ const LAYOUT_OPTIONS: { mode: LayoutMode; label: string; icon: string }[] = [
   { mode: 'overview', label: 'Overview', icon: '◈' },
 ];
 
-export function Toolbar({ layoutMode, onLayoutChange }: {
+const DIRECTION_OPTIONS: { dir: LayoutDirection; label: string; icon: string }[] = [
+  { dir: 'LR', label: 'LR', icon: '⟶' },
+  { dir: 'TB', label: 'TB', icon: '⟱' },
+];
+
+export function Toolbar({ layoutMode, onLayoutChange, layoutDirection, onDirectionChange, onFitView }: {
   layoutMode: LayoutMode;
   onLayoutChange: (m: LayoutMode) => void;
+  layoutDirection: LayoutDirection;
+  onDirectionChange: (d: LayoutDirection) => void;
+  onFitView: () => void;
 }) {
   return (
     <div style={{
@@ -44,6 +52,59 @@ export function Toolbar({ layoutMode, onLayoutChange }: {
           </button>
         );
       })}
+
+      {/* Direction toggle — hidden in overview mode */}
+      {layoutMode !== 'overview' && (
+        <>
+          <div style={{ width: 1, alignSelf: 'stretch', background: C.border, margin: '4px 2px' }} />
+          {DIRECTION_OPTIONS.map(({ dir, label, icon }) => {
+            const active = layoutDirection === dir;
+            return (
+              <button
+                data-testid={`direction-${dir}`}
+                key={dir}
+                onClick={() => onDirectionChange(dir)}
+                title={dir === 'LR' ? 'Left → Right layout' : 'Top → Bottom layout'}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 4,
+                  padding: '5px 9px', borderRadius: 7, border: 'none', cursor: 'pointer',
+                  fontSize: 11, fontWeight: 600,
+                  background: active ? C.accentDim : 'transparent',
+                  color: active ? C.accent : C.textSecondary,
+                  boxShadow: active ? `0 0 8px ${C.accentGlow}` : 'none',
+                  transition: 'all 0.15s',
+                }}
+                onMouseEnter={(e) => { if (!active) (e.currentTarget as HTMLButtonElement).style.color = C.textPrimary; }}
+                onMouseLeave={(e) => { if (!active) (e.currentTarget as HTMLButtonElement).style.color = C.textSecondary; }}
+              >
+                <span style={{ fontSize: 13 }}>{icon}</span>
+                {label}
+              </button>
+            );
+          })}
+        </>
+      )}
+
+      {/* Fit View button */}
+      <div style={{ width: 1, alignSelf: 'stretch', background: C.border, margin: '4px 2px' }} />
+      <button
+        data-testid="fit-view"
+        onClick={onFitView}
+        title="Fit graph to view"
+        style={{
+          display: 'flex', alignItems: 'center', gap: 4,
+          padding: '5px 9px', borderRadius: 7, border: 'none', cursor: 'pointer',
+          fontSize: 11, fontWeight: 600,
+          background: 'transparent',
+          color: C.textSecondary,
+          transition: 'all 0.15s',
+        }}
+        onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = C.textPrimary; }}
+        onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = C.textSecondary; }}
+      >
+        <span style={{ fontSize: 13 }}>⊡</span>
+        Fit
+      </button>
     </div>
   );
 }

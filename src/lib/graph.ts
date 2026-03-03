@@ -611,6 +611,68 @@ export function computeClusterNodes(nodes: Node<NodeData>[]): Node<ClusterData>[
   return clusters;
 }
 
+// ── Cycle detection ──────────────────────────────────────────────────────────
+
+/**
+ * Detect cycles in the dependency graph defined by the given edges.
+ * Returns an array of cycle paths, where each path is an ordered list of
+ * node IDs forming one cycle (the first and last element are the same node).
+ *
+ * Uses iterative DFS with an explicit call stack to avoid call-stack overflow
+ * on large graphs.
+ */
+export function detectCycles(edges: Edge<EdgeData>[]): string[][] {
+  // Build adjacency list
+  const adj = new Map<string, string[]>();
+  for (const e of edges) {
+    if (!adj.has(e.source)) adj.set(e.source, []);
+    adj.get(e.source)!.push(e.target);
+  }
+
+  const allVisited = new Set<string>();
+  const cycles: string[][] = [];
+
+  for (const startNode of adj.keys()) {
+    if (allVisited.has(startNode)) continue;
+
+    // Iterative DFS: each stack frame is [nodeId, neighborIndex, currentPath]
+    const stack: [string, number, string[]][] = [[startNode, 0, [startNode]]];
+    const inPath = new Set<string>([startNode]);
+
+    while (stack.length > 0) {
+      const frame = stack[stack.length - 1];
+      const [node, idx, path] = frame;
+      const neighbors = adj.get(node) ?? [];
+
+      if (idx >= neighbors.length) {
+        // Done with this node — backtrack
+        allVisited.add(node);
+        inPath.delete(node);
+        stack.pop();
+        continue;
+      }
+
+      // Advance to next neighbor
+      frame[1]++;
+      const neighbor = neighbors[idx];
+
+      if (inPath.has(neighbor)) {
+        // Found a cycle — extract the cycle portion
+        const cycleStart = path.indexOf(neighbor);
+        cycles.push([...path.slice(cycleStart), neighbor]);
+        continue;
+      }
+
+      if (!allVisited.has(neighbor)) {
+        inPath.add(neighbor);
+        stack.push([neighbor, 0, [...path, neighbor]]);
+      }
+    }
+  }
+
+  return cycles;
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function sheetNodeId(workbook: string, sheet: string): string {

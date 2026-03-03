@@ -4,8 +4,10 @@ export interface SheetReference {
   cells: string[];
   formula: string;
   sourceCell: string;
-  namedRangeName?: string; // set when this ref was detected via a named range
-  tableName?: string;      // set when this ref was detected via an Excel table
+  namedRangeName?: string;  // set when this ref was detected via a named range
+  tableName?: string;       // set when this ref was detected via an Excel table
+  columnName?: string;      // column referenced in a structured ref (TableName[Column])
+  isRelativeRef?: boolean;  // true for [@ColumnName] implicit current-row references
 }
 
 export interface NamedRange {
@@ -23,6 +25,7 @@ export interface ExcelTable {
   ref: string;          // raw range, e.g. "A1:D10"
   targetSheet: string;  // sheet where table is defined
   cells: string;        // same as ref (the cell range)
+  columns?: string[];   // column names extracted from table definition (if available)
 }
 
 export interface ParsedSheet {
@@ -51,4 +54,21 @@ export interface EdgeReference {
   sourceCell: string;
   targetCells: string[];
   formula: string;
+}
+
+// ── Formula reference resolver types ─────────────────────────────────────────
+
+export type ResolverErrorKind =
+  | 'missing-table'
+  | 'missing-column'
+  | 'ambiguous-name'
+  | 'circular-dependency';
+
+export interface ResolverError {
+  kind: ResolverErrorKind;
+  message: string;
+  tableName?: string;
+  columnName?: string;
+  sourceCell?: string;
+  formula?: string;
 }

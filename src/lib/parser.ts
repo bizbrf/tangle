@@ -1,5 +1,5 @@
 import * as XLSX from 'xlsx';
-import type { WorkbookFile, ParsedSheet, SheetReference, SheetWorkload, NamedRange, ExcelTable } from '../types';
+import type { WorkbookFile, ParsedSheet, SheetReference, SheetWorkload, NamedRange, ExcelTable, ResolverError } from '../types';
 
 // ── Supported Excel file types ───────────────────────────────────────────────
 export const EXCEL_EXTENSIONS = ['.xlsx', '.xls', '.xlsm', '.xlsb'];
@@ -138,14 +138,22 @@ export function extractTables(wb: XLSX.WorkBook): ExcelTable[] {
     if (!ws) continue;
     const rawTables = ws['!tables'];
     if (!Array.isArray(rawTables)) continue;
-    for (const entry of rawTables as { name?: string; displayName?: string; ref?: string }[]) {
+    for (const entry of rawTables as {
+      name?: string;
+      displayName?: string;
+      ref?: string;
+      columns?: { name?: string }[];
+    }[]) {
       if (!entry.ref) continue;
       const name = entry.displayName ?? entry.name ?? 'Table';
+      const rawCols = entry.columns ?? [];
+      const columns = rawCols.filter((c) => c.name).map((c) => c.name!);
       tables.push({
         name,
         ref: entry.ref,
         targetSheet: sheetName,
         cells: entry.ref,
+        ...(columns.length > 0 && { columns }),
       });
     }
   }
@@ -179,15 +187,20 @@ export function extractReferences(
     namedRangeRe = new RegExp(`\\b(${escaped.join('|')})\\b(?!\\()`, 'gi');
   }
 
-  // Build a regex for Excel table names: TableName[ means structured reference like TableName[Column]
-  // Also match plain TableName\b when not followed by ( (to catch full-table references)
+  // Build a regex for Excel table names.
+  // Matches:
+  //   TableName[ColumnSpec]  — structured ref (group 1 = name, group 2 = column spec)
+  //   TableName\b            — bare table reference not followed by ( (group 1 = name, group 2 = undefined)
+  // Handles dot-notation names (e.g. QueryName.Result) automatically via escaped name.
   let tableRe: RegExp | null = null;
   if (tableMap.size > 0) {
     const escaped = Array.from(tableMap.values()).map((t) =>
       t.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'),
     );
-    // Match TableName[ (structured ref) or TableName\b not followed by (
-    tableRe = new RegExp(`\\b(${escaped.join('|')})(?:\\[|\\b(?!\\())`, 'gi');
+    tableRe = new RegExp(
+      `\\b(${escaped.join('|')})(?:\\[([^\\]@#]+)\\]|\\b(?!\\())`,
+      'gi',
+    );
   }
 
   for (const [cellAddr, cell] of Object.entries(sheet)) {
@@ -273,7 +286,8 @@ export function extractReferences(
       tableRe.lastIndex = 0;
       let tMatch: RegExpExecArray | null;
       while ((tMatch = tableRe.exec(formula)) !== null) {
-        const matchedName = tMatch[1] ?? tMatch[0].replace(/\[$/, '');
+        const matchedName = tMatch[1];
+        const columnSpec = tMatch[2]?.trim(); // undefined for bare table refs
         const table = tableMap.get(matchedName.toLowerCase());
         if (!table) continue;
         // Tables are local to the workbook; skip if same sheet as source
@@ -290,8 +304,18 @@ export function extractReferences(
             formula,
             sourceCell: cellAddr,
             tableName: table.name,
+            ...(columnSpec !== undefined && columnSpec !== '' && { columnName: columnSpec }),
           });
         }
+      }
+    }
+
+    // Fourth pass: detect implicit [@ColumnName] relative row references.
+    // These always refer to the current row of the enclosing table — always within-sheet.
+    {
+      const relRowRe = /\[@([^\]]+)\]/g;
+      while (relRowRe.exec(formula) !== null) {
+        workload.withinSheetRefs++;
       }
     }
 
@@ -306,6 +330,96 @@ export function extractReferences(
   }
 
   return { references: refs, workload };
+}
+
+// ── Structured reference resolver ────────────────────────────────────────────
+
+/**
+ * Build a map of lowercase table name → set of lowercase column names.
+ * Used with resolveStructuredRefs() to detect missing column references.
+ */
+export function buildColumnsByTable(tables: ExcelTable[]): Map<string, Set<string>> {
+  const map = new Map<string, Set<string>>();
+  for (const t of tables) {
+    if (t.columns && t.columns.length > 0) {
+      map.set(t.name.toLowerCase(), new Set(t.columns.map((c) => c.toLowerCase())));
+    }
+  }
+  return map;
+}
+
+/**
+ * Validate structured references in a formula against the provided tableMap.
+ * Returns an array of ResolverError for any missing tables, missing columns, or
+ * ambiguous names detected. Pass columnsByTable (from buildColumnsByTable) to
+ * enable column-level validation; omit to skip column checks.
+ *
+ * Handles:
+ *  - TableName[ColumnName]
+ *  - QueryName.Result[ColumnName]  (dot-notation table names)
+ *  - [@ColumnName]                 (relative row refs — always valid, no table needed)
+ */
+export function resolveStructuredRefs(
+  formula: string,
+  tableMap: Map<string, ExcelTable>,
+  columnsByTable?: Map<string, Set<string>>,
+): ResolverError[] {
+  const errors: ResolverError[] = [];
+  if (!formula) return errors;
+
+  // Build a set of normalized names that appear more than once (ambiguous across tables).
+  // Two different table names that normalize the same → ambiguous.
+  const nameCount = new Map<string, number>();
+  for (const t of tableMap.values()) {
+    const key = t.name.toLowerCase();
+    nameCount.set(key, (nameCount.get(key) ?? 0) + 1);
+  }
+
+  // Match structured refs: Name[ColumnSpec] where Name can include dots (dot-notation).
+  // Excludes [@...] (relative) and [#...] (special like [#All]).
+  // Requires at least one valid column character (not ], @, or #) throughout.
+  const structuredRe = /\b([A-Za-z_][\w.]*)\[([^\]@#]+)\]/g;
+  let match: RegExpExecArray | null;
+  while ((match = structuredRe.exec(formula)) !== null) {
+    const rawName = match[1];
+    const columnSpec = match[2].trim();
+    const key = rawName.toLowerCase();
+
+    if (!tableMap.has(key)) {
+      errors.push({
+        kind: 'missing-table',
+        message: `Table '${rawName}' not found`,
+        tableName: rawName,
+        formula,
+      });
+      continue;
+    }
+
+    if ((nameCount.get(key) ?? 0) > 1) {
+      errors.push({
+        kind: 'ambiguous-name',
+        message: `Table name '${rawName}' is ambiguous`,
+        tableName: rawName,
+        formula,
+      });
+      continue;
+    }
+
+    if (columnsByTable) {
+      const cols = columnsByTable.get(key);
+      if (cols && !cols.has(columnSpec.toLowerCase())) {
+        errors.push({
+          kind: 'missing-column',
+          message: `Column '${columnSpec}' not found in table '${rawName}'`,
+          tableName: rawName,
+          columnName: columnSpec,
+          formula,
+        });
+      }
+    }
+  }
+
+  return errors;
 }
 
 // ── Public API ──────────────────────────────────────────────────────────────

@@ -163,9 +163,65 @@ src/
 src-tauri/        # Tauri (Rust) desktop wrapper
 ```
 
-## Security & data privacy
+## Performance & determinism
 
-Tangle processes all Excel data locally — nothing is uploaded to a server. See
+### Layout determinism
+
+`buildGraph` sorts all nodes and edges by ID before passing them to the Dagre layout engine. This guarantees that **identical inputs always produce identical coordinates** (±1 px) regardless of Map insertion order or call order. Pass an optional `layoutSeed` string to tag each layout run in the structured `perf:layout` debug log:
+
+```ts
+buildGraph(workbooks, 'graph', hiddenFiles, false, false, 'LR', 'my-seed')
+```
+
+### Performance budgets
+
+Measured on a mid-tier laptop; CI uses a +15 % tolerance.
+
+| Metric | Budget |
+|--------|--------|
+| Initial graph render cold (300 nodes / 600 edges) | ≤ 600 ms |
+| Initial graph render warm | ≤ 300 ms |
+| Reorganize end-to-end | ≤ 400 ms |
+| Grouping toggle | ≤ 350 ms |
+| 5 000 graph builds (formula eval proxy) warm | ≤ 2 500 ms |
+
+### Graph quality checks
+
+Every layout run is checked for:
+
+- **No node overlap** — `countNodeOverlaps(nodes)` must return 0.
+- **Stable edge crossings** — `countEdgeCrossings(nodes, edges)` must not increase for the same seed.
+
+These functions are exported from `src/lib/graph.ts` for use in tests.
+
+### Perf harness
+
+Run locally:
+
+```bash
+npm run test:perf
+```
+
+Results are written to `tests/perf/results.json` (gitignored). CI uploads this file as the **perf-results** artifact on every run. To update the baselines, edit `tests/perf/baselines.json` with rationale in the PR description.
+
+### Structured logging
+
+All layout calls emit a `perf:layout` line to `console.debug`:
+
+```json
+{
+  "seed": "my-seed",
+  "mode": "graph",
+  "direction": "LR",
+  "nodes": 42,
+  "edges": 58,
+  "durationMs": 12
+}
+```
+
+Enable debug output in Node.js with `NODE_DEBUG=*` or in the browser DevTools console (verbose level).
+
+## Security & data privacyTangle processes all Excel data locally — nothing is uploaded to a server. See
 **[SECURITY.md](SECURITY.md)** for a full data security review including data
 flow diagrams, dependency audit, and Tauri permission analysis.
 

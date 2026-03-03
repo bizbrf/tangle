@@ -1,0 +1,7 @@
+{
+  "layoutColdMs": 600,
+  "layoutWarmMs": 300,
+  "reorganizeColdMs": 400,
+  "groupingMs": 350,
+  "formulaWarmMs": 2500
+}

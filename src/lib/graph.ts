@@ -61,11 +61,12 @@ export function buildGraph(
   showNamedRanges: boolean = false,
   showTables: boolean = false,
   layoutDirection: LayoutDirection = 'LR',
+  layoutSeed?: string,
 ): { nodes: Node<NodeData>[]; edges: Edge<EdgeData>[] } {
   const visibleWorkbooks = hiddenFiles.size > 0
     ? workbooks.filter((wb) => !hiddenFiles.has(wb.name))
     : workbooks;
-  if (layoutMode === 'overview') return buildOverviewGraph(visibleWorkbooks);
+  if (layoutMode === 'overview') return buildOverviewGraph(visibleWorkbooks, layoutSeed);
   const uploadedSheetIds = new Set<string>();
   const uploadedWbNames = new Set<string>();
   const nodesMap = new Map<string, Node<NodeData>>();
@@ -243,8 +244,24 @@ export function buildGraph(
     };
   });
 
-  const nodeList = applyLayout(Array.from(nodesMap.values()), edges, layoutMode, layoutDirection);
-  return { nodes: nodeList, edges };
+  // Sort nodes and edges by ID before layout to ensure deterministic output
+  // regardless of Map insertion order. The optional layoutSeed is logged for
+  // reproducibility tracking (same graph + seed always produces the same layout).
+  const sortedNodes = Array.from(nodesMap.values()).sort((a, b) => a.id.localeCompare(b.id));
+  const sortedEdges = [...edges].sort((a, b) => a.id.localeCompare(b.id));
+
+  const t0 = performance.now();
+  const nodeList = applyLayout(sortedNodes, sortedEdges, layoutMode, layoutDirection);
+  const duration = performance.now() - t0;
+  console.debug('perf:layout', {
+    seed: layoutSeed ?? null,
+    mode: layoutMode,
+    direction: layoutDirection,
+    nodes: sortedNodes.length,
+    edges: sortedEdges.length,
+    durationMs: Math.round(duration),
+  });
+  return { nodes: nodeList, edges: sortedEdges };
 }
 
 // ── Layout strategies ─────────────────────────────────────────────────────────
@@ -396,6 +413,7 @@ function groupedLayout(nodes: Node<NodeData>[], edges: Edge<EdgeData>[], directi
 
 function buildOverviewGraph(
   workbooks: WorkbookFile[],
+  layoutSeed?: string,
 ): { nodes: Node<NodeData>[]; edges: Edge<EdgeData>[] } {
   const uploadedWbNames = new Set<string>();
   const normalizedWbName = new Map<string, string>();
@@ -516,8 +534,22 @@ function buildOverviewGraph(
     };
   });
 
-  const nodeList = dagreLayout(Array.from(nodesMap.values()), edges, 'LR');
-  return { nodes: nodeList, edges };
+  // Sort nodes and edges by ID for deterministic layout
+  const sortedNodes = Array.from(nodesMap.values()).sort((a, b) => a.id.localeCompare(b.id));
+  const sortedEdges = edges.sort((a, b) => a.id.localeCompare(b.id));
+
+  const t0 = performance.now();
+  const nodeList = dagreLayout(sortedNodes, sortedEdges, 'LR');
+  const duration = performance.now() - t0;
+  console.debug('perf:layout', {
+    seed: layoutSeed ?? null,
+    mode: 'overview',
+    direction: 'LR',
+    nodes: sortedNodes.length,
+    edges: sortedEdges.length,
+    durationMs: Math.round(duration),
+  });
+  return { nodes: nodeList, edges: sortedEdges };
 }
 
 // ── Cluster computation ──────────────────────────────────────────────────────
@@ -686,4 +718,88 @@ function makeTableNode(id: string, workbookName: string, tableName: string, cell
       workload: null,
     },
   };
+}
+
+// ── Graph quality metrics ─────────────────────────────────────────────────────
+
+/**
+ * Count pairs of nodes whose bounding boxes overlap.
+ * Returns 0 when the layout has no overlaps.
+ */
+export function countNodeOverlaps(nodes: Node<NodeData>[]): number {
+  let count = 0;
+  for (let i = 0; i < nodes.length; i++) {
+    for (let j = i + 1; j < nodes.length; j++) {
+      const a = nodes[i];
+      const b = nodes[j];
+      const aRight = a.position.x + NODE_W;
+      const aBottom = a.position.y + NODE_H;
+      const bRight = b.position.x + NODE_W;
+      const bBottom = b.position.y + NODE_H;
+      if (
+        a.position.x < bRight &&
+        aRight > b.position.x &&
+        a.position.y < bBottom &&
+        aBottom > b.position.y
+      ) {
+        count++;
+      }
+    }
+  }
+  return count;
+}
+
+/** CCW test helper for segment intersection. */
+function ccw(
+  ax: number, ay: number,
+  bx: number, by: number,
+  cx: number, cy: number,
+): boolean {
+  return (cy - ay) * (bx - ax) > (by - ay) * (cx - ax);
+}
+
+/** Return true when segments AB and CD properly cross (shared endpoints excluded). */
+function segmentsIntersect(
+  ax: number, ay: number, bx: number, by: number,
+  cx: number, cy: number, dx: number, dy: number,
+): boolean {
+  return (
+    ccw(ax, ay, cx, cy, dx, dy) !== ccw(bx, by, cx, cy, dx, dy) &&
+    ccw(ax, ay, bx, by, cx, cy) !== ccw(ax, ay, bx, by, dx, dy)
+  );
+}
+
+/**
+ * Count the number of edge-crossing pairs in the current layout.
+ * Edges sharing an endpoint are skipped (they trivially "cross" at the node).
+ */
+export function countEdgeCrossings(nodes: Node<NodeData>[], edges: Edge<EdgeData>[]): number {
+  const nodeById = new Map(nodes.map((n) => [n.id, n]));
+  const cx = (n: Node<NodeData>) => n.position.x + NODE_W / 2;
+  const cy = (n: Node<NodeData>) => n.position.y + NODE_H / 2;
+
+  let count = 0;
+  for (let i = 0; i < edges.length; i++) {
+    for (let j = i + 1; j < edges.length; j++) {
+      const eA = edges[i];
+      const eB = edges[j];
+      // Skip edges that share an endpoint
+      if (
+        eA.source === eB.source || eA.source === eB.target ||
+        eA.target === eB.source || eA.target === eB.target
+      ) continue;
+      const srcA = nodeById.get(eA.source);
+      const tgtA = nodeById.get(eA.target);
+      const srcB = nodeById.get(eB.source);
+      const tgtB = nodeById.get(eB.target);
+      if (!srcA || !tgtA || !srcB || !tgtB) continue;
+      if (segmentsIntersect(
+        cx(srcA), cy(srcA), cx(tgtA), cy(tgtA),
+        cx(srcB), cy(srcB), cx(tgtB), cy(tgtB),
+      )) {
+        count++;
+      }
+    }
+  }
+  return count;
 }

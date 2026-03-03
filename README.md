@@ -94,6 +94,12 @@ Hover over any file row to reveal three icon buttons:
 - **Crosshair** — pan and zoom the graph canvas to that file's nodes so you can locate them instantly.
 - **X** — remove the file entirely from the session.
 
+## Determinism & performance budgets
+
+- Graph layout uses a deterministic seed pulled from the URL query string (`?layoutSeed=1234`). Add `layoutDebug=1` to print the active seed, layout mode, and a `perf:layout` log with node/edge counts and timings. The seed is combined with the current graph snapshot so re-runs produce identical coordinates.
+- Lightweight perf checks live in `tests/perf`. Running `npm test` writes `perf-results.json` and enforces the budgets defined in `tests/perf/baseline.json` (layout, regroup, grouping toggle, and 5k formula parses). CI uploads the perf summary artifact from that file.
+- To refresh baselines, adjust `tests/perf/baseline.json` with new targets (e.g., after intentional performance work) and commit the change alongside the code.
+
 ## Sheet detail panel
 
 Clicking any node opens a detail panel on the right side of the canvas. The panel shows:

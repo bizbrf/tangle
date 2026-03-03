@@ -41,6 +41,69 @@ export type LayoutDirection = 'LR' | 'TB';
 
 const NODE_W = 190;
 const NODE_H = 88;
+const DEFAULT_LAYOUT_SEED = 'tangle';
+
+export type LayoutOptions = {
+  layoutSeed?: string | number;
+  snapshotHash?: string;
+};
+
+function hashString(input: string): number {
+  // FNV-1a 32-bit hash for deterministic seeding
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < input.length; i++) {
+    hash ^= input.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return hash >>> 0;
+}
+
+function combineSeeds(seed: string | number, snapshotHash?: string): string {
+  if (!snapshotHash) return String(seed);
+  return `${seed}|${snapshotHash}`;
+}
+
+export function graphSnapshotKey(
+  workbooks: WorkbookFile[],
+  hiddenFiles: Set<string> = new Set(),
+  showNamedRanges: boolean = false,
+  showTables: boolean = false,
+): string {
+  const parts: string[] = [`nr:${showNamedRanges ? 1 : 0}`, `tbl:${showTables ? 1 : 0}`];
+  const visible = workbooks.filter((wb) => !hiddenFiles.has(wb.name));
+  const sorted = [...visible].sort((a, b) => a.name.localeCompare(b.name));
+  for (const wb of sorted) {
+    parts.push(stripExcelExt(wb.name));
+    const sortedSheets = [...wb.sheets].sort((a, b) => a.sheetName.localeCompare(b.sheetName));
+    for (const sheet of sortedSheets) {
+      parts.push(`${sheet.sheetName}:${sheet.references.length}`);
+    }
+  }
+  return parts.join('|');
+}
+
+function seededScore(value: string, seed: string | number): number {
+  return hashString(`${seed}:${value}`);
+}
+
+function orderNodesBySeed<T extends { id: string }>(nodes: T[], seed: string | number): T[] {
+  return [...nodes].sort((a, b) => {
+    const diff = seededScore(a.id, seed) - seededScore(b.id, seed);
+    if (diff !== 0) return diff;
+    return a.id.localeCompare(b.id);
+  });
+}
+
+function orderEdgesBySeed<T extends { source: string; target: string }>(edges: T[], seed: string | number): T[] {
+  return [...edges].sort((a, b) => {
+    const aKey = `${a.source}->${a.target}`;
+    const bKey = `${b.source}->${b.target}`;
+    const diff = seededScore(aKey, seed) - seededScore(bKey, seed);
+    if (diff !== 0) return diff;
+    if (a.source !== b.source) return a.source.localeCompare(b.source);
+    return a.target.localeCompare(b.target);
+  });
+}
 
 // Normalize a workbook name for fuzzy matching:
 // - Extract filename from bracket notation: "[FileB.xlsx]" → "FileB.xlsx"
@@ -61,11 +124,16 @@ export function buildGraph(
   showNamedRanges: boolean = false,
   showTables: boolean = false,
   layoutDirection: LayoutDirection = 'LR',
+  layoutOptions: LayoutOptions = {},
 ): { nodes: Node<NodeData>[]; edges: Edge<EdgeData>[] } {
+  const { layoutSeed = DEFAULT_LAYOUT_SEED, snapshotHash } = layoutOptions;
   const visibleWorkbooks = hiddenFiles.size > 0
     ? workbooks.filter((wb) => !hiddenFiles.has(wb.name))
     : workbooks;
-  if (layoutMode === 'overview') return buildOverviewGraph(visibleWorkbooks);
+  const graphHash = snapshotHash ?? graphSnapshotKey(visibleWorkbooks, hiddenFiles, showNamedRanges, showTables);
+  const effectiveSeed = combineSeeds(layoutSeed, graphHash);
+
+  if (layoutMode === 'overview') return buildOverviewGraph(visibleWorkbooks, effectiveSeed);
   const uploadedSheetIds = new Set<string>();
   const uploadedWbNames = new Set<string>();
   const nodesMap = new Map<string, Node<NodeData>>();
@@ -243,7 +311,7 @@ export function buildGraph(
     };
   });
 
-  const nodeList = applyLayout(Array.from(nodesMap.values()), edges, layoutMode, layoutDirection);
+  const nodeList = applyLayout(Array.from(nodesMap.values()), edges, layoutMode, layoutDirection, effectiveSeed);
   return { nodes: nodeList, edges };
 }
 
@@ -254,15 +322,17 @@ function applyLayout(
   edges: Edge<EdgeData>[],
   mode: LayoutMode,
   direction: LayoutDirection = 'LR',
+  layoutSeed: string | number = DEFAULT_LAYOUT_SEED,
 ): Node<NodeData>[] {
-  if (mode === 'grouped') return groupedLayout(nodes, edges, direction);
-  return dagreLayout(nodes, edges, direction);
+  if (mode === 'grouped') return groupedLayout(nodes, edges, direction, layoutSeed);
+  return dagreLayout(nodes, edges, direction, layoutSeed);
 }
 
 function dagreLayout(
   nodes: Node<NodeData>[],
   edges: Edge<EdgeData>[],
   rankdir: 'LR' | 'TB',
+  layoutSeed: string | number,
 ): Node<NodeData>[] {
   const g = new Dagre.graphlib.Graph().setDefaultEdgeLabel(() => ({}));
   g.setGraph({
@@ -273,8 +343,11 @@ function dagreLayout(
     marginy: 60,
   });
 
-  nodes.forEach((n) => g.setNode(n.id, { width: NODE_W, height: NODE_H }));
-  edges.forEach((e) => g.setEdge(e.source, e.target));
+  const orderedNodes = orderNodesBySeed(nodes, layoutSeed);
+  const orderedEdges = orderEdgesBySeed(edges, layoutSeed);
+
+  orderedNodes.forEach((n) => g.setNode(n.id, { width: NODE_W, height: NODE_H }));
+  orderedEdges.forEach((e) => g.setEdge(e.source, e.target));
 
   Dagre.layout(g);
 
@@ -287,7 +360,12 @@ function dagreLayout(
   });
 }
 
-function groupedLayout(nodes: Node<NodeData>[], edges: Edge<EdgeData>[], direction: LayoutDirection = 'LR'): Node<NodeData>[] {
+function groupedLayout(
+  nodes: Node<NodeData>[],
+  edges: Edge<EdgeData>[],
+  direction: LayoutDirection = 'LR',
+  layoutSeed: string | number = DEFAULT_LAYOUT_SEED,
+): Node<NodeData>[] {
   const INTRA_VGAP = 100;
   const INTRA_PAD_X = 40;
   const INTRA_PAD_Y = 56; // top padding (room for cluster label)
@@ -297,7 +375,9 @@ function groupedLayout(nodes: Node<NodeData>[], edges: Edge<EdgeData>[], directi
   const wbGroups = new Map<string, Node<NodeData>[]>();
   const externalNodes: Node<NodeData>[] = [];
 
-  for (const node of nodes) {
+  const orderedNodes = orderNodesBySeed(nodes, layoutSeed);
+
+  for (const node of orderedNodes) {
     if (node.data.isExternal) {
       externalNodes.push(node);
     } else {
@@ -319,7 +399,11 @@ function groupedLayout(nodes: Node<NodeData>[], edges: Edge<EdgeData>[], directi
   const g = new Dagre.graphlib.Graph().setDefaultEdgeLabel(() => ({}));
   g.setGraph({ rankdir: direction, ranksep: 130, nodesep: 80, marginx: 60, marginy: 60 });
 
-  for (const [wb, size] of groupSizes.entries()) {
+  const groupedEntries = orderNodesBySeed(
+    Array.from(groupSizes.entries()).map(([wb, size]) => ({ id: wb, size })),
+    layoutSeed,
+  );
+  for (const { id: wb, size } of groupedEntries) {
     g.setNode(wb, { width: size.w, height: size.h });
   }
 
@@ -337,7 +421,8 @@ function groupedLayout(nodes: Node<NodeData>[], edges: Edge<EdgeData>[], directi
   for (const n of externalNodes) nodeToWb.set(n.id, '__external__');
 
   const addedGroupEdges = new Set<string>();
-  for (const edge of edges) {
+  const orderedGroupEdges = orderEdgesBySeed(edges, layoutSeed);
+  for (const edge of orderedGroupEdges) {
     const srcWb = nodeToWb.get(edge.source);
     const tgtWb = nodeToWb.get(edge.target);
     if (srcWb && tgtWb && srcWb !== tgtWb) {
@@ -396,6 +481,7 @@ function groupedLayout(nodes: Node<NodeData>[], edges: Edge<EdgeData>[], directi
 
 function buildOverviewGraph(
   workbooks: WorkbookFile[],
+  layoutSeed: string | number,
 ): { nodes: Node<NodeData>[]; edges: Edge<EdgeData>[] } {
   const uploadedWbNames = new Set<string>();
   const normalizedWbName = new Map<string, string>();
@@ -516,7 +602,7 @@ function buildOverviewGraph(
     };
   });
 
-  const nodeList = dagreLayout(Array.from(nodesMap.values()), edges, 'LR');
+  const nodeList = dagreLayout(Array.from(nodesMap.values()), edges, 'LR', layoutSeed);
   return { nodes: nodeList, edges };
 }
 
@@ -609,6 +695,80 @@ export function computeClusterNodes(nodes: Node<NodeData>[]): Node<ClusterData>[
   }
 
   return clusters;
+}
+
+// ── Quality metrics ─────────────────────────────────────────────────────────
+
+function nodeCenter(node: Node<NodeData>): { x: number; y: number } {
+  return { x: node.position.x + NODE_W / 2, y: node.position.y + NODE_H / 2 };
+}
+
+function segmentsIntersect(a1: { x: number; y: number }, a2: { x: number; y: number }, b1: { x: number; y: number }, b2: { x: number; y: number }): boolean {
+  const det = (p: { x: number; y: number }, q: { x: number; y: number }, r: { x: number; y: number }) =>
+    (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x);
+  const d1 = det(a1, a2, b1);
+  const d2 = det(a1, a2, b2);
+  const d3 = det(b1, b2, a1);
+  const d4 = det(b1, b2, a2);
+  return (d1 * d2 < 0) && (d3 * d4 < 0);
+}
+
+export function countNodeOverlaps(nodes: Node<NodeData>[]): number {
+  let overlaps = 0;
+  for (let i = 0; i < nodes.length; i++) {
+    const a = nodes[i];
+    const ax2 = a.position.x + NODE_W;
+    const ay2 = a.position.y + NODE_H;
+    for (let j = i + 1; j < nodes.length; j++) {
+      const b = nodes[j];
+      const bx2 = b.position.x + NODE_W;
+      const by2 = b.position.y + NODE_H;
+      const overlap = a.position.x < bx2 && ax2 > b.position.x && a.position.y < by2 && ay2 > b.position.y;
+      if (overlap) overlaps++;
+    }
+  }
+  return overlaps;
+}
+
+export function countEdgeCrossings(nodes: Node<NodeData>[], edges: Edge<EdgeData>[]): number {
+  const nodeMap = new Map(nodes.map((n) => [n.id, n]));
+  const segments = edges
+    .map((e) => {
+      const src = nodeMap.get(e.source);
+      const tgt = nodeMap.get(e.target);
+      if (!src || !tgt) return null;
+      return { a: nodeCenter(src), b: nodeCenter(tgt), id: e.id, srcId: e.source, tgtId: e.target };
+    })
+    .filter((s): s is { a: { x: number; y: number }; b: { x: number; y: number }; id: string; srcId: string; tgtId: string } => s !== null);
+
+  let crossings = 0;
+  for (let i = 0; i < segments.length; i++) {
+    const segA = segments[i];
+    for (let j = i + 1; j < segments.length; j++) {
+      const segB = segments[j];
+      // Ignore edges that share endpoints — crossing there is expected
+      if (segA.srcId === segB.srcId || segA.srcId === segB.tgtId || segA.tgtId === segB.srcId || segA.tgtId === segB.tgtId) continue;
+      if (segmentsIntersect(segA.a, segA.b, segB.a, segB.b)) crossings++;
+    }
+  }
+  return crossings;
+}
+
+export function edgeLengthVariance(nodes: Node<NodeData>[], edges: Edge<EdgeData>[]): number {
+  const nodeMap = new Map(nodes.map((n) => [n.id, n]));
+  const lengths: number[] = [];
+  for (const e of edges) {
+    const src = nodeMap.get(e.source);
+    const tgt = nodeMap.get(e.target);
+    if (!src || !tgt) continue;
+    const c1 = nodeCenter(src);
+    const c2 = nodeCenter(tgt);
+    const len = Math.hypot(c1.x - c2.x, c1.y - c2.y);
+    lengths.push(len);
+  }
+  if (lengths.length === 0) return 0;
+  const mean = lengths.reduce((a, b) => a + b, 0) / lengths.length;
+  return lengths.reduce((acc, len) => acc + (len - mean) ** 2, 0) / lengths.length;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

@@ -1,0 +1,20 @@
+{
+  "layout": {
+    "coldMs": 1400,
+    "warmMs": 950,
+    "overlaps": 0,
+    "crossings": 100,
+    "edgeLengthVariance": 120000000
+  },
+  "reorganize": {
+    "budgetMs": 200
+  },
+  "grouping": {
+    "budgetMs": 150
+  },
+  "formula": {
+    "batchWarmMs": 200,
+    "coldParseMs": 600
+  },
+  "tolerance": 0.15
+}

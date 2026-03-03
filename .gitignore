@@ -31,6 +31,7 @@ CLAUDE.md
 coverage/
 playwright-report/
 test-results/
+perf-results.json
 
 # GSD planning docs (local only)
 .planning/

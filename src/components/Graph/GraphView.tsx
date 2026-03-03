@@ -19,7 +19,7 @@ import {
 import '@xyflow/react/dist/style.css';
 
 import type { WorkbookFile } from '../../types';
-import { buildGraph, computeClusterNodes, type NodeData, type EdgeData, type LayoutMode, type LayoutDirection } from '../../lib/graph';
+import { buildGraph, computeClusterNodes, graphSnapshotKey, type NodeData, type EdgeData, type LayoutMode, type LayoutDirection } from '../../lib/graph';
 import { C } from './constants';
 import { edgeStrokeWidth, edgeAccentColor, edgeRestColor } from './edge-helpers';
 import { WeightedEdge } from './WeightedEdge';
@@ -64,13 +64,42 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
   const [focusDirection, setFocusDirection] = useState<'both' | 'upstream' | 'downstream'>('both');
   const { fitView } = useReactFlow();
   const highlightTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const layoutSeed = useMemo(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('layoutSeed') ?? 'tangle';
+  }, []);
+  const layoutDebug = useMemo(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.has('layoutDebug');
+  }, []);
 
   // Check if any loaded workbook has named ranges / Excel tables (for showing toggles)
   const hasNamedRanges = useMemo(() => workbooks.some((wb) => wb.namedRanges.length > 0), [workbooks]);
   const hasTables = useMemo(() => workbooks.some((wb) => wb.tables.length > 0), [workbooks]);
 
   useEffect(() => {
-    const { nodes: n, edges: e } = buildGraph(workbooks, layoutMode, hiddenFiles, showNamedRanges, showTables, layoutDirection);
+    const start = performance.now();
+    const snapshotHash = graphSnapshotKey(workbooks, hiddenFiles, showNamedRanges, showTables);
+    const { nodes: n, edges: e } = buildGraph(
+      workbooks,
+      layoutMode,
+      hiddenFiles,
+      showNamedRanges,
+      showTables,
+      layoutDirection,
+      { layoutSeed, snapshotHash },
+    );
+    const duration = Math.round(performance.now() - start);
+    console.info('perf:layout', {
+      layoutSeed,
+      snapshotHash,
+      nodeCount: n.length,
+      edgeCount: e.length,
+      durationMs: duration,
+    });
+    if (layoutDebug) {
+      console.info('debug:layout-settings', { layoutMode, layoutDirection, layoutSeed, snapshotHash });
+    }
     setNodes(n);
     setEdges(e);
     // Reset selection & focus when graph data changes — intentional synchronization
@@ -79,7 +108,7 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
     setSelectedEdge(null);
     setSelectedNodeIds(new Set());
     setFocusNodeId(null);
-  }, [workbooks, layoutMode, layoutDirection, hiddenFiles, showNamedRanges, showTables, setNodes, setEdges]);
+  }, [workbooks, layoutMode, layoutDirection, hiddenFiles, showNamedRanges, showTables, setNodes, setEdges, layoutSeed, layoutDebug]);
 
   // Highlight file: select its nodes and fit view to them
   useEffect(() => {

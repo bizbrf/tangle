@@ -37,6 +37,7 @@ export type EdgeData = {
 };
 
 export type LayoutMode = 'graph' | 'grouped' | 'overview';
+export type LayoutDirection = 'LR' | 'TB';
 
 const NODE_W = 190;
 const NODE_H = 88;
@@ -59,6 +60,7 @@ export function buildGraph(
   hiddenFiles: Set<string> = new Set(),
   showNamedRanges: boolean = false,
   showTables: boolean = false,
+  layoutDirection: LayoutDirection = 'LR',
 ): { nodes: Node<NodeData>[]; edges: Edge<EdgeData>[] } {
   const visibleWorkbooks = hiddenFiles.size > 0
     ? workbooks.filter((wb) => !hiddenFiles.has(wb.name))
@@ -241,7 +243,7 @@ export function buildGraph(
     };
   });
 
-  const nodeList = applyLayout(Array.from(nodesMap.values()), edges, layoutMode);
+  const nodeList = applyLayout(Array.from(nodesMap.values()), edges, layoutMode, layoutDirection);
   return { nodes: nodeList, edges };
 }
 
@@ -251,9 +253,10 @@ function applyLayout(
   nodes: Node<NodeData>[],
   edges: Edge<EdgeData>[],
   mode: LayoutMode,
+  direction: LayoutDirection = 'LR',
 ): Node<NodeData>[] {
-  if (mode === 'grouped') return groupedLayout(nodes, edges);
-  return dagreLayout(nodes, edges, 'LR');
+  if (mode === 'grouped') return groupedLayout(nodes, edges, direction);
+  return dagreLayout(nodes, edges, direction);
 }
 
 function dagreLayout(
@@ -284,7 +287,7 @@ function dagreLayout(
   });
 }
 
-function groupedLayout(nodes: Node<NodeData>[], edges: Edge<EdgeData>[]): Node<NodeData>[] {
+function groupedLayout(nodes: Node<NodeData>[], edges: Edge<EdgeData>[], direction: LayoutDirection = 'LR'): Node<NodeData>[] {
   const INTRA_VGAP = 100;
   const INTRA_PAD_X = 40;
   const INTRA_PAD_Y = 56; // top padding (room for cluster label)
@@ -314,7 +317,7 @@ function groupedLayout(nodes: Node<NodeData>[], edges: Edge<EdgeData>[]): Node<N
 
   // Build a file-level Dagre graph to position groups based on inter-file edges
   const g = new Dagre.graphlib.Graph().setDefaultEdgeLabel(() => ({}));
-  g.setGraph({ rankdir: 'LR', ranksep: 130, nodesep: 80, marginx: 60, marginy: 60 });
+  g.setGraph({ rankdir: direction, ranksep: 130, nodesep: 80, marginx: 60, marginy: 60 });
 
   for (const [wb, size] of groupSizes.entries()) {
     g.setNode(wb, { width: size.w, height: size.h });

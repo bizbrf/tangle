@@ -19,7 +19,7 @@ import {
 import '@xyflow/react/dist/style.css';
 
 import type { WorkbookFile } from '../../types';
-import { buildGraph, computeClusterNodes, type NodeData, type EdgeData, type LayoutMode } from '../../lib/graph';
+import { buildGraph, computeClusterNodes, type NodeData, type EdgeData, type LayoutMode, type LayoutDirection } from '../../lib/graph';
 import { C } from './constants';
 import { edgeStrokeWidth, edgeAccentColor, edgeRestColor } from './edge-helpers';
 import { WeightedEdge } from './WeightedEdge';
@@ -53,6 +53,7 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
   const [selectedEdge, setSelectedEdge] = useState<Edge<EdgeData> | null>(null);
   const [selectedNodeIds, setSelectedNodeIds] = useState<Set<string>>(new Set());
   const [layoutMode, setLayoutMode] = useState<LayoutMode>('graph');
+  const [layoutDirection, setLayoutDirection] = useState<LayoutDirection>('LR');
   const [edgeKindFilter, setEdgeKindFilter] = useState<EdgeKindFilterState>({
     internal: true, 'cross-file': true, external: true, 'named-range': true, table: true,
   });
@@ -69,7 +70,7 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
   const hasTables = useMemo(() => workbooks.some((wb) => wb.tables.length > 0), [workbooks]);
 
   useEffect(() => {
-    const { nodes: n, edges: e } = buildGraph(workbooks, layoutMode, hiddenFiles, showNamedRanges, showTables);
+    const { nodes: n, edges: e } = buildGraph(workbooks, layoutMode, hiddenFiles, showNamedRanges, showTables, layoutDirection);
     setNodes(n);
     setEdges(e);
     // Reset selection & focus when graph data changes — intentional synchronization
@@ -78,7 +79,7 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
     setSelectedEdge(null);
     setSelectedNodeIds(new Set());
     setFocusNodeId(null);
-  }, [workbooks, layoutMode, hiddenFiles, showNamedRanges, showTables, setNodes, setEdges]);
+  }, [workbooks, layoutMode, layoutDirection, hiddenFiles, showNamedRanges, showTables, setNodes, setEdges]);
 
   // Highlight file: select its nodes and fit view to them
   useEffect(() => {
@@ -284,7 +285,13 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
         />
       </ReactFlow>
 
-      <Toolbar layoutMode={layoutMode} onLayoutChange={setLayoutMode} />
+      <Toolbar
+        layoutMode={layoutMode}
+        onLayoutChange={setLayoutMode}
+        layoutDirection={layoutDirection}
+        onDirectionChange={setLayoutDirection}
+        onFitView={() => fitView({ padding: 0.25, duration: 400 })}
+      />
       <EdgeKindFilterBar filter={edgeKindFilter} onFilterChange={setEdgeKindFilter} showNamedRanges={showNamedRanges} showTables={showTables} />
 
       {/* Named Ranges toggle — only shown when workbooks contain named ranges */}

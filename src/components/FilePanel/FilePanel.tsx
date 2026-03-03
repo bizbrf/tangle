@@ -10,8 +10,6 @@ interface FilePanelProps {
   onToggleHidden?: (workbookName: string) => void;
 }
 
-let nextId = 1;
-
 // ── Icon helpers ──────────────────────────────────────────────────────────────
 
 function IconUpload() {
@@ -101,7 +99,7 @@ export function FilePanel({ workbooks, onWorkbooksChange, onLocateFile, hiddenFi
     }
     try {
       const parsed = await Promise.all(
-        excelFiles.map((f) => parseWorkbook(f, String(nextId++))),
+        excelFiles.map((f) => parseWorkbook(f, crypto.randomUUID())),
       );
       onWorkbooksChange([...workbooks, ...parsed]);
       setExpanded((prev) => {
@@ -182,7 +180,7 @@ export function FilePanel({ workbooks, onWorkbooksChange, onLocateFile, hiddenFi
           <p className="text-xs text-center leading-relaxed" style={{ color: '#7b8799' }}>
             Drop <span style={{ color: '#edf0f5', fontWeight: 600 }}>Excel</span> files here
             <br />
-            <span style={{ color: dragging ? '#e8445a' : '#e8445a', opacity: dragging ? 1 : 0.7 }}>
+            <span style={{ color: '#e8445a', opacity: dragging ? 1 : 0.7 }}>
               or click to browse
             </span>
           </p>

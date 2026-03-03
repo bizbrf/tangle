@@ -19,6 +19,7 @@ function makeWorkbook(
     id: name,
     name,
     namedRanges: [],
+    tables: [],
     sheets: sheets.map(({ sheetName, refs = [] }) => ({
       workbookName: name,
       sheetName,
@@ -85,7 +86,7 @@ describe('GRAPH-02: edges created for cross-sheet references', () => {
     const { edges } = buildGraph([wb])
     // Both refs share the same source→target pair → aggregated into one edge
     expect(edges).toHaveLength(1)
-    expect(edges[0].data.refCount).toBe(2)
+    expect(edges[0].data!.refCount).toBe(2)
   })
 })
 
@@ -134,13 +135,13 @@ describe('GRAPH-03: edge kind classification', () => {
 
   it("internal edge: same-workbook cross-sheet ref has edgeKind 'internal'", () => {
     const { edges } = buildGraph([wbA, wbB])
-    const internalEdge = edges.find(e => e.data.edgeKind === 'internal')
+    const internalEdge = edges.find(e => e.data!.edgeKind === 'internal')
     expect(internalEdge).toBeDefined()
   })
 
   it("cross-file edge: ref to uploaded workbook has edgeKind 'cross-file'", () => {
     const { edges } = buildGraph([wbA, wbB])
-    const crossFileEdge = edges.find(e => e.data.edgeKind === 'cross-file')
+    const crossFileEdge = edges.find(e => e.data!.edgeKind === 'cross-file')
     expect(crossFileEdge).toBeDefined()
   })
 
@@ -148,13 +149,13 @@ describe('GRAPH-03: edge kind classification', () => {
     // Upload only wbA — External.xlsx is not uploaded
     const { edges } = buildGraph([wbA])
     // crossFileRef now also becomes external (FileB.xlsx not uploaded)
-    const externalEdges = edges.filter(e => e.data.edgeKind === 'external')
+    const externalEdges = edges.filter(e => e.data!.edgeKind === 'external')
     expect(externalEdges.length).toBeGreaterThan(0)
   })
 
   it("named-range edge: ref with namedRangeName has edgeKind 'named-range' when showNamedRanges=true", () => {
     const { edges } = buildGraph([wbWithNR], 'graph', new Set(), true)
-    const nrEdge = edges.find(e => e.data.edgeKind === 'named-range')
+    const nrEdge = edges.find(e => e.data!.edgeKind === 'named-range')
     expect(nrEdge).toBeDefined()
   })
 })
@@ -314,13 +315,13 @@ describe('GRAPH-07: named range nodes toggle with showNamedRanges flag', () => {
   it('showNamedRanges=true: named-range edges replace the direct edge', () => {
     const { edges } = buildGraph([wbWithNR], 'graph', new Set(), true)
     // Direct edge replaced by two 'named-range' edges (source->NR and NR->consumer)
-    expect(edges.every(e => e.data.edgeKind === 'named-range')).toBe(true)
+    expect(edges.every(e => e.data!.edgeKind === 'named-range')).toBe(true)
     expect(edges).toHaveLength(2)
   })
 
   it('showNamedRanges=false: a direct edge exists (not named-range kind)', () => {
     const { edges } = buildGraph([wbWithNR], 'graph', new Set(), false)
     expect(edges).toHaveLength(1)
-    expect(edges[0].data.edgeKind).not.toBe('named-range')
+    expect(edges[0].data!.edgeKind).not.toBe('named-range')
   })
 })

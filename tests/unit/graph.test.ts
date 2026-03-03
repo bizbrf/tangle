@@ -420,3 +420,36 @@ describe('GRAPH-09: table nodes toggle with showTables flag', () => {
     expect(edges[0].data!.edgeKind).toBe('internal')
   })
 })
+
+// ── GRAPH-10: buildGraph is deterministic (supports reorganizer) ──────────────
+
+describe('GRAPH-10: buildGraph is deterministic across repeated calls', () => {
+  const crossFileRef: SheetReference = {
+    targetWorkbook: 'FileB.xlsx',
+    targetSheet: 'Sheet1',
+    cells: ['A1'],
+    formula: '[FileB.xlsx]Sheet1!A1',
+    sourceCell: 'A1',
+  }
+  const wbA = makeWorkbook('FileA.xlsx', [{ sheetName: 'Sheet1', refs: [crossFileRef] }])
+  const wbB = makeWorkbook('FileB.xlsx', [{ sheetName: 'Sheet1' }, { sheetName: 'Sheet2' }])
+
+  it('two identical calls produce the same node ids and positions', () => {
+    const { nodes: nodes1 } = buildGraph([wbA, wbB], 'graph')
+    const { nodes: nodes2 } = buildGraph([wbA, wbB], 'graph')
+    expect(nodes1.map(n => n.id).sort()).toEqual(nodes2.map(n => n.id).sort())
+    const byId1 = new Map(nodes1.map(n => [n.id, n.position]))
+    for (const n of nodes2) {
+      expect(byId1.get(n.id)).toEqual(n.position)
+    }
+  })
+
+  it('repeated calls with grouped layout produce identical positions', () => {
+    const { nodes: nodes1 } = buildGraph([wbA, wbB], 'grouped')
+    const { nodes: nodes2 } = buildGraph([wbA, wbB], 'grouped')
+    const byId1 = new Map(nodes1.map(n => [n.id, n.position]))
+    for (const n of nodes2) {
+      expect(byId1.get(n.id)).toEqual(n.position)
+    }
+  })
+})

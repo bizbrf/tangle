@@ -54,6 +54,7 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
   const [selectedNodeIds, setSelectedNodeIds] = useState<Set<string>>(new Set());
   const [layoutMode, setLayoutMode] = useState<LayoutMode>('graph');
   const [layoutDirection, setLayoutDirection] = useState<LayoutDirection>('LR');
+  const [layoutKey, setLayoutKey] = useState(0);
   const [edgeKindFilter, setEdgeKindFilter] = useState<EdgeKindFilterState>({
     internal: true, 'cross-file': true, external: true, 'named-range': true, table: true,
   });
@@ -79,7 +80,7 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
     setSelectedEdge(null);
     setSelectedNodeIds(new Set());
     setFocusNodeId(null);
-  }, [workbooks, layoutMode, layoutDirection, hiddenFiles, showNamedRanges, showTables, setNodes, setEdges]);
+  }, [workbooks, layoutMode, layoutDirection, layoutKey, hiddenFiles, showNamedRanges, showTables, setNodes, setEdges]);
 
   // Highlight file: select its nodes and fit view to them
   useEffect(() => {
@@ -291,6 +292,7 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
         layoutDirection={layoutDirection}
         onDirectionChange={setLayoutDirection}
         onFitView={() => fitView({ padding: 0.25, duration: 400 })}
+        onReorganize={() => setLayoutKey((k) => k + 1)}
       />
       <EdgeKindFilterBar filter={edgeKindFilter} onFilterChange={setEdgeKindFilter} showNamedRanges={showNamedRanges} showTables={showTables} />
 

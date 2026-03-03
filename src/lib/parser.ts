@@ -15,6 +15,42 @@ const REF_WITH_CELL_RE = new RegExp(
   'g',
 );
 
+// ── External filename sanitization ──────────────────────────────────────────
+
+/**
+ * Sanitize an external filename extracted from an Excel external-link .rels entry.
+ * - Strips directory path components (basename only) to prevent path traversal
+ * - Removes `file:` URI prefixes
+ * - Replaces characters unsafe in Windows/POSIX filenames with underscores
+ * - Preserves Unicode letters and digits (including non-ASCII)
+ * - Truncates to 200 characters to prevent excessive-length names
+ * - Falls back to "external" when the result would be empty
+ */
+export function sanitizeExternalFilename(raw: string): string {
+  let name = raw.trim();
+  // Strip file: URI prefix (e.g. "file:///C:/path/file.xlsx" or "file://server/share/file.xlsx")
+  name = name.replace(/^file:\/*/i, '');
+  // Normalize separators
+  name = name.replace(/\\/g, '/');
+  // Extract basename (last non-empty path segment)
+  const segments = name.split('/').filter(Boolean);
+  name = segments[segments.length - 1] ?? name;
+  // Strip URL-encoded percent sequences that could hide path traversal
+  try { name = decodeURIComponent(name); } catch { /* leave as-is on malformed encoding */ }
+  // Replace characters unsafe in Windows/POSIX filenames while preserving Unicode.
+  // Control chars (0x00–0x1F) must be explicitly matched for Windows filesystem safety;
+  // the no-control-regex rule is disabled here intentionally.
+  // eslint-disable-next-line no-control-regex
+  name = name.replace(/[\x00-\x1F<>:"/\\|?*]/g, '_');
+  // Collapse consecutive underscores
+  name = name.replace(/_+/g, '_');
+  // Trim leading/trailing underscores and dots
+  name = name.replace(/^[_.]+|[_.]+$/g, '').trim();
+  // Truncate
+  if (name.length > 200) name = name.slice(0, 200);
+  return name || 'external';
+}
+
 // ── External link resolution ────────────────────────────────────────────────
 
 // Excel stores external references as [1], [2], etc. — numeric indices that map
@@ -74,7 +110,7 @@ export function buildExternalLinkMap(wb: XLSX.WorkBook): Map<string, string> {
     }
 
     if (filename) {
-      map.set(String(i), filename);
+      map.set(String(i), sanitizeExternalFilename(filename));
     }
   }
 

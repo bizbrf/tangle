@@ -5,7 +5,7 @@ import * as XLSX from 'xlsx'
 import { readFileSync } from 'node:fs'
 import { describe, it, expect, beforeAll } from 'vitest'
 import { FIXTURES } from '../fixtures/index'
-import { extractReferences, extractNamedRanges, buildExternalLinkMap, extractTables } from '../../src/lib/parser'
+import { extractReferences, extractNamedRanges, buildExternalLinkMap, extractTables, sanitizeExternalFilename } from '../../src/lib/parser'
 
 // ── PARSE-01: Functions are importable ───────────────────────────────────────
 // Verified implicitly: if this file loads without error, the exports exist.
@@ -296,5 +296,52 @@ describe('extractReferences — table structured refs (PARSE-13)', () => {
     const { references } = extractReferences(sheet, 'Summary', 'test.xlsx', new Map(), new Map(), tableMap)
     const tblRefs = references.filter(r => r.tableName === 'SalesTable')
     expect(tblRefs).toHaveLength(1)
+  })
+})
+
+// ── PARSE-EXT: sanitizeExternalFilename ──────────────────────────────────────
+describe('sanitizeExternalFilename (PARSE-EXT)', () => {
+  it('PARSE-EXT-01: returns a plain filename unchanged', () => {
+    expect(sanitizeExternalFilename('Assumptions.xlsx')).toBe('Assumptions.xlsx')
+  })
+
+  it('PARSE-EXT-02: extracts basename from a Unix path', () => {
+    expect(sanitizeExternalFilename('../../path/to/Budget.xlsx')).toBe('Budget.xlsx')
+  })
+
+  it('PARSE-EXT-03: extracts basename from a Windows path (backslashes)', () => {
+    expect(sanitizeExternalFilename('C:\\Users\\Alice\\Budget.xlsx')).toBe('Budget.xlsx')
+  })
+
+  it('PARSE-EXT-04: strips file:// URI prefix (various slash counts)', () => {
+    expect(sanitizeExternalFilename('file:///C:/Users/Alice/Prices.xlsx')).toBe('Prices.xlsx')
+    expect(sanitizeExternalFilename('file://server/share/Prices.xlsx')).toBe('Prices.xlsx')
+    expect(sanitizeExternalFilename('file:/Prices.xlsx')).toBe('Prices.xlsx')
+  })
+
+  it('PARSE-EXT-05: replaces unsafe characters with underscores', () => {
+    const result = sanitizeExternalFilename('bad<>:"|?.xlsx')
+    expect(result).not.toMatch(/[<>:"|?]/)
+  })
+
+  it('PARSE-EXT-06: preserves Unicode characters', () => {
+    expect(sanitizeExternalFilename('Données_2024.xlsx')).toBe('Données_2024.xlsx')
+  })
+
+  it('PARSE-EXT-07: truncates names longer than 200 characters', () => {
+    const long = 'a'.repeat(250) + '.xlsx'
+    expect(sanitizeExternalFilename(long).length).toBeLessThanOrEqual(200)
+  })
+
+  it('PARSE-EXT-08: returns "external" for an empty or whitespace-only input', () => {
+    expect(sanitizeExternalFilename('')).toBe('external')
+    expect(sanitizeExternalFilename('   ')).toBe('external')
+  })
+
+  it('PARSE-EXT-09: handles path traversal segments safely', () => {
+    const result = sanitizeExternalFilename('../../../etc/passwd')
+    // Should not contain path separators or traversal dots at start
+    expect(result).not.toContain('/')
+    expect(result).not.toContain('..')
   })
 })

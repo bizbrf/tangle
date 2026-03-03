@@ -12,12 +12,13 @@ const DIRECTION_OPTIONS: { dir: LayoutDirection; label: string; icon: string }[]
   { dir: 'TB', label: 'TB', icon: '⟱' },
 ];
 
-export function Toolbar({ layoutMode, onLayoutChange, layoutDirection, onDirectionChange, onFitView }: {
+export function Toolbar({ layoutMode, onLayoutChange, layoutDirection, onDirectionChange, onFitView, onReorganize }: {
   layoutMode: LayoutMode;
   onLayoutChange: (m: LayoutMode) => void;
   layoutDirection: LayoutDirection;
   onDirectionChange: (d: LayoutDirection) => void;
   onFitView: () => void;
+  onReorganize: () => void;
 }) {
   return (
     <div style={{
@@ -34,6 +35,8 @@ export function Toolbar({ layoutMode, onLayoutChange, layoutDirection, onDirecti
           <button
             data-testid={`layout-${mode}`}
             key={mode}
+            aria-label={`${label} layout`}
+            aria-pressed={active}
             onClick={() => onLayoutChange(mode)}
             style={{
               display: 'flex', alignItems: 'center', gap: 5,
@@ -47,7 +50,7 @@ export function Toolbar({ layoutMode, onLayoutChange, layoutDirection, onDirecti
             onMouseEnter={(e) => { if (!active) (e.currentTarget as HTMLButtonElement).style.color = C.textPrimary; }}
             onMouseLeave={(e) => { if (!active) (e.currentTarget as HTMLButtonElement).style.color = C.textSecondary; }}
           >
-            <span style={{ fontSize: 12 }}>{icon}</span>
+            <span style={{ fontSize: 12 }} aria-hidden="true">{icon}</span>
             {label}
           </button>
         );
@@ -63,6 +66,8 @@ export function Toolbar({ layoutMode, onLayoutChange, layoutDirection, onDirecti
               <button
                 data-testid={`direction-${dir}`}
                 key={dir}
+                aria-label={dir === 'LR' ? 'Left to right layout direction' : 'Top to bottom layout direction'}
+                aria-pressed={active}
                 onClick={() => onDirectionChange(dir)}
                 title={dir === 'LR' ? 'Left → Right layout' : 'Top → Bottom layout'}
                 style={{
@@ -91,6 +96,7 @@ export function Toolbar({ layoutMode, onLayoutChange, layoutDirection, onDirecti
         data-testid="fit-view"
         onClick={onFitView}
         title="Fit graph to view"
+        aria-label="Fit graph to view"
         style={{
           display: 'flex', alignItems: 'center', gap: 4,
           padding: '5px 9px', borderRadius: 7, border: 'none', cursor: 'pointer',
@@ -102,8 +108,29 @@ export function Toolbar({ layoutMode, onLayoutChange, layoutDirection, onDirecti
         onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = C.textPrimary; }}
         onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = C.textSecondary; }}
       >
-        <span style={{ fontSize: 13 }}>⊡</span>
+        <span style={{ fontSize: 13 }} aria-hidden="true">⊡</span>
         Fit
+      </button>
+
+      {/* Reorganize button — re-runs the layout algorithm */}
+      <button
+        data-testid="reorganize"
+        onClick={onReorganize}
+        title="Re-run layout algorithm"
+        aria-label="Re-layout graph"
+        style={{
+          display: 'flex', alignItems: 'center', gap: 4,
+          padding: '5px 9px', borderRadius: 7, border: 'none', cursor: 'pointer',
+          fontSize: 11, fontWeight: 600,
+          background: 'transparent',
+          color: C.textSecondary,
+          transition: 'all 0.15s',
+        }}
+        onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = C.textPrimary; }}
+        onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = C.textSecondary; }}
+      >
+        <span style={{ fontSize: 13 }} aria-hidden="true">⟳</span>
+        Re-layout
       </button>
     </div>
   );

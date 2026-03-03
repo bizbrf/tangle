@@ -2,6 +2,7 @@ import Dagre from '@dagrejs/dagre';
 import { MarkerType, type Node, type Edge } from '@xyflow/react';
 import type { WorkbookFile, EdgeReference, SheetWorkload } from '../types';
 import { EXCEL_EXT_RE } from './parser';
+import { perfLogger } from './perf';
 
 /** Strip any known Excel extension from a filename */
 export function stripExcelExt(name: string): string {
@@ -61,11 +62,29 @@ export function buildGraph(
   showNamedRanges: boolean = false,
   showTables: boolean = false,
   layoutDirection: LayoutDirection = 'LR',
+  layoutSeed?: number,
 ): { nodes: Node<NodeData>[]; edges: Edge<EdgeData>[] } {
+  const endPerfLog = perfLogger.start('perf:layout', {
+    layoutMode,
+    layoutDirection,
+    seed: layoutSeed,
+    workbookCount: workbooks.length,
+  });
+
   const visibleWorkbooks = hiddenFiles.size > 0
     ? workbooks.filter((wb) => !hiddenFiles.has(wb.name))
     : workbooks;
-  if (layoutMode === 'overview') return buildOverviewGraph(visibleWorkbooks);
+  if (layoutMode === 'overview') {
+    const result = buildOverviewGraph(visibleWorkbooks, layoutSeed);
+    endPerfLog();
+    perfLogger.log('perf:layout', {
+      nodeCount: result.nodes.length,
+      edgeCount: result.edges.length,
+      layoutMode,
+      seed: layoutSeed,
+    });
+    return result;
+  }
   const uploadedSheetIds = new Set<string>();
   const uploadedWbNames = new Set<string>();
   const nodesMap = new Map<string, Node<NodeData>>();
@@ -243,7 +262,17 @@ export function buildGraph(
     };
   });
 
-  const nodeList = applyLayout(Array.from(nodesMap.values()), edges, layoutMode, layoutDirection);
+  const nodeList = applyLayout(Array.from(nodesMap.values()), edges, layoutMode, layoutDirection, layoutSeed);
+
+  endPerfLog();
+  perfLogger.log('perf:layout', {
+    nodeCount: nodeList.length,
+    edgeCount: edges.length,
+    layoutMode,
+    layoutDirection,
+    seed: layoutSeed,
+  });
+
   return { nodes: nodeList, edges };
 }
 
@@ -254,15 +283,17 @@ function applyLayout(
   edges: Edge<EdgeData>[],
   mode: LayoutMode,
   direction: LayoutDirection = 'LR',
+  seed?: number,
 ): Node<NodeData>[] {
-  if (mode === 'grouped') return groupedLayout(nodes, edges, direction);
-  return dagreLayout(nodes, edges, direction);
+  if (mode === 'grouped') return groupedLayout(nodes, edges, direction, seed);
+  return dagreLayout(nodes, edges, direction, seed);
 }
 
 function dagreLayout(
   nodes: Node<NodeData>[],
   edges: Edge<EdgeData>[],
   rankdir: 'LR' | 'TB',
+  seed?: number,
 ): Node<NodeData>[] {
   const g = new Dagre.graphlib.Graph().setDefaultEdgeLabel(() => ({}));
   g.setGraph({
@@ -271,6 +302,7 @@ function dagreLayout(
     nodesep: rankdir === 'LR' ? 55 : 45,
     marginx: 60,
     marginy: 60,
+    ranker: seed !== undefined ? 'tight-tree' : 'network-simplex',
   });
 
   nodes.forEach((n) => g.setNode(n.id, { width: NODE_W, height: NODE_H }));
@@ -287,7 +319,7 @@ function dagreLayout(
   });
 }
 
-function groupedLayout(nodes: Node<NodeData>[], edges: Edge<EdgeData>[], direction: LayoutDirection = 'LR'): Node<NodeData>[] {
+function groupedLayout(nodes: Node<NodeData>[], edges: Edge<EdgeData>[], direction: LayoutDirection = 'LR', _seed?: number): Node<NodeData>[] {
   const INTRA_VGAP = 100;
   const INTRA_PAD_X = 40;
   const INTRA_PAD_Y = 56; // top padding (room for cluster label)
@@ -396,6 +428,7 @@ function groupedLayout(nodes: Node<NodeData>[], edges: Edge<EdgeData>[], directi
 
 function buildOverviewGraph(
   workbooks: WorkbookFile[],
+  seed?: number,
 ): { nodes: Node<NodeData>[]; edges: Edge<EdgeData>[] } {
   const uploadedWbNames = new Set<string>();
   const normalizedWbName = new Map<string, string>();
@@ -516,7 +549,7 @@ function buildOverviewGraph(
     };
   });
 
-  const nodeList = dagreLayout(Array.from(nodesMap.values()), edges, 'LR');
+  const nodeList = dagreLayout(Array.from(nodesMap.values()), edges, 'LR', seed);
   return { nodes: nodeList, edges };
 }
 

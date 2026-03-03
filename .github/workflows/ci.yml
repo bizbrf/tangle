@@ -25,6 +25,17 @@ jobs:
       - name: Unit Tests
         run: npm test
 
+      - name: Performance Tests
+        run: npm test -- tests/perf/harness.test.ts
+
+      - name: Upload Performance Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: perf-results
+          path: tests/perf/baseline.json
+          retention-days: 30
+
       - name: Type check
         run: npx tsc -b --noEmit
 

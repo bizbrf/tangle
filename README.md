@@ -158,10 +158,78 @@ src/
   lib/
     parser.ts     # Excel formula parsing and reference extraction
     graph.ts      # Node/edge graph construction and layout
+    perf.ts       # Performance monitoring and graph quality metrics
   types.ts        # Shared TypeScript types
   App.tsx         # Root layout
 src-tauri/        # Tauri (Rust) desktop wrapper
+tests/
+  unit/           # Unit tests
+  e2e/            # End-to-end tests with Playwright
+  perf/           # Performance tests and budgets
+    harness.test.ts  # Performance test suite
+    baseline.json    # Performance baselines
 ```
+
+## Performance & Determinism
+
+Tangle enforces performance budgets and deterministic behavior to ensure consistent and predictable graph layouts:
+
+### Deterministic Layouts
+
+All graph layouts use deterministic seeding to produce identical results across runs:
+
+- Layout algorithms accept an optional `layoutSeed` parameter
+- The same seed produces the same node positions (±1px tolerance)
+- Seed is derived from graph structure hash when not explicitly provided
+- Enables reproducible testing and reliable layout comparisons
+
+### Performance Budgets
+
+The following performance budgets are enforced in CI (baseline: mid-tier laptop):
+
+| Operation | Budget (ms) | Description |
+|-----------|-------------|-------------|
+| Initial graph render (cold) | ≤ 600 | First layout @ 300 nodes / 600 edges |
+| Initial graph render (warm) | ≤ 300 | Subsequent layouts |
+| Reorganize action | ≤ 400 | Direction change or mode toggle |
+| Grouping toggle | ≤ 350 | Switch between graph modes |
+| Formula parsing (cold) | ≤ 600 | Initial workbook parse |
+
+CI fails when budgets exceed tolerance (+15%).
+
+### Graph Quality Metrics
+
+Automated checks prevent layout regressions:
+
+- **No node overlaps** — all nodes must be non-overlapping
+- **Consistent edge crossings** — same seed produces same crossing count
+- **Stable edge lengths** — average edge length variance tracked
+
+### Running Performance Tests
+
+```bash
+# Run performance tests locally
+npm run test:perf
+
+# Run with verbose output
+npm run test:perf -- --reporter=verbose
+
+# Update baselines (after intentional improvements)
+# Edit tests/perf/baseline.json with new measurements
+```
+
+### Debugging Performance
+
+Enable performance logging in development:
+
+```javascript
+// In browser console or localStorage
+localStorage.setItem('TANGLE_DEBUG_PERF', 'true');
+```
+
+Performance events are logged to the console:
+- `perf:layout` — layout duration, node/edge counts, seed
+- `perf:graph-quality` — overlap count, crossing count, edge length stats
 
 ## Security & data privacy
 

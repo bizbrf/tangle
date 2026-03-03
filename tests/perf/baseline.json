@@ -1,0 +1,42 @@
+{
+  "version": "1.0",
+  "platform": "ubuntu-latest",
+  "timestamp": "2026-03-03T00:00:00.000Z",
+  "budgets": {
+    "LAYOUT_COLD_300N": 600,
+    "LAYOUT_WARM_300N": 300,
+    "REORGANIZE": 400,
+    "GROUPING_TOGGLE": 350,
+    "FORMULA_EVAL_5K_WARM": 200,
+    "FORMULA_PARSE_COLD": 600,
+    "MEMORY_STEADY_1K": 300,
+    "MAX_OVERLAPS": 0,
+    "MAX_CROSSING_INCREASE": 0
+  },
+  "tolerance": 0.15,
+  "baseline": {
+    "layout-cold": {
+      "duration": 450,
+      "nodeCount": 100,
+      "edgeCount": 99
+    },
+    "layout-warm": {
+      "duration": 180,
+      "nodeCount": 100,
+      "edgeCount": 99
+    },
+    "reorganize": {
+      "duration": 220,
+      "nodeCount": 5,
+      "edgeCount": 10
+    },
+    "grouping-toggle": {
+      "duration": 180,
+      "nodeCount": 5,
+      "edgeCount": 10
+    },
+    "formula-parse-cold": {
+      "duration": 350
+    }
+  }
+}

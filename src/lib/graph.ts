@@ -687,3 +687,58 @@ function makeTableNode(id: string, workbookName: string, tableName: string, cell
     },
   };
 }
+
+// ── Reorganize layout ─────────────────────────────────────────────────────────
+
+/** Seeded LCG pseudo-random number generator. Returns values in [0, 1). */
+function seededPrng(seed: number): () => number {
+  let s = (seed >>> 0) || 1;
+  return () => {
+    s = ((Math.imul(1664525, s) + 1013904223) >>> 0);
+    return s / 0x100000000;
+  };
+}
+
+/**
+ * Re-compute layout positions for the current node/edge set without rebuilding
+ * the graph from source data. Useful for reflowing a messy graph on demand.
+ *
+ * - Pinned nodes (ids in `pinnedIds`) keep their existing positions unchanged.
+ * - The numeric `seed` controls node ordering fed to the layout engine so that
+ *   the same graph + seed always produces the same output (deterministic).
+ * - Falls back to the input positions if the layout engine throws.
+ */
+export function reorganizeLayout(
+  nodes: Node<NodeData>[],
+  edges: Edge<EdgeData>[],
+  mode: LayoutMode,
+  direction: LayoutDirection = 'LR',
+  pinnedIds: Set<string> = new Set(),
+  seed: number = 1,
+): Node<NodeData>[] {
+  if (nodes.length === 0) return nodes;
+
+  // Seeded Fisher-Yates shuffle to vary Dagre's tie-breaking for equal-rank nodes
+  const rng = seededPrng(seed);
+  const shuffled = [...nodes];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+
+  let laid: Node<NodeData>[];
+  try {
+    laid = applyLayout(shuffled, edges, mode, direction);
+  } catch {
+    return nodes; // fall back to current positions on error
+  }
+
+  // Build a fast id→position map
+  const posMap = new Map(laid.map((n) => [n.id, n.position]));
+
+  // Pinned nodes keep their original positions; free nodes get the new layout
+  return nodes.map((n) => ({
+    ...n,
+    position: pinnedIds.has(n.id) ? n.position : (posMap.get(n.id) ?? n.position),
+  }));
+}

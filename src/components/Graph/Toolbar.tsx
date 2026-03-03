@@ -12,12 +12,13 @@ const DIRECTION_OPTIONS: { dir: LayoutDirection; label: string; icon: string }[]
   { dir: 'TB', label: 'TB', icon: '⟱' },
 ];
 
-export function Toolbar({ layoutMode, onLayoutChange, layoutDirection, onDirectionChange, onFitView }: {
+export function Toolbar({ layoutMode, onLayoutChange, layoutDirection, onDirectionChange, onFitView, onReorganize }: {
   layoutMode: LayoutMode;
   onLayoutChange: (m: LayoutMode) => void;
   layoutDirection: LayoutDirection;
   onDirectionChange: (d: LayoutDirection) => void;
   onFitView: () => void;
+  onReorganize: () => void;
 }) {
   return (
     <div style={{
@@ -104,6 +105,27 @@ export function Toolbar({ layoutMode, onLayoutChange, layoutDirection, onDirecti
       >
         <span style={{ fontSize: 13 }}>⊡</span>
         Fit
+      </button>
+
+      {/* Reorganize button */}
+      <div style={{ width: 1, alignSelf: 'stretch', background: C.border, margin: '4px 2px' }} />
+      <button
+        data-testid="reorganize"
+        onClick={onReorganize}
+        title="Reorganize graph layout"
+        style={{
+          display: 'flex', alignItems: 'center', gap: 4,
+          padding: '5px 9px', borderRadius: 7, border: 'none', cursor: 'pointer',
+          fontSize: 11, fontWeight: 600,
+          background: 'transparent',
+          color: C.textSecondary,
+          transition: 'all 0.15s',
+        }}
+        onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = C.textPrimary; }}
+        onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = C.textSecondary; }}
+      >
+        <span style={{ fontSize: 13 }}>⟳</span>
+        Reorganize
       </button>
     </div>
   );

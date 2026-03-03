@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import {
   ReactFlow,
   ReactFlowProvider,
@@ -15,11 +15,12 @@ import {
   type Node,
   type Edge,
   type OnSelectionChangeParams,
+  type NodeMouseHandler,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 
 import type { WorkbookFile } from '../../types';
-import { buildGraph, computeClusterNodes, type NodeData, type EdgeData, type LayoutMode, type LayoutDirection } from '../../lib/graph';
+import { buildGraph, computeClusterNodes, reorganizeLayout, type NodeData, type EdgeData, type LayoutMode, type LayoutDirection } from '../../lib/graph';
 import { C } from './constants';
 import { edgeStrokeWidth, edgeAccentColor, edgeRestColor } from './edge-helpers';
 import { WeightedEdge } from './WeightedEdge';
@@ -62,6 +63,7 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
   const [focusNodeId, setFocusNodeId] = useState<string | null>(null);
   const [focusDepth, setFocusDepth] = useState(1);
   const [focusDirection, setFocusDirection] = useState<'both' | 'upstream' | 'downstream'>('both');
+  const [pinnedNodeIds, setPinnedNodeIds] = useState<Set<string>>(new Set());
   const { fitView } = useReactFlow();
   const highlightTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
@@ -79,6 +81,7 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
     setSelectedEdge(null);
     setSelectedNodeIds(new Set());
     setFocusNodeId(null);
+    setPinnedNodeIds(new Set());
   }, [workbooks, layoutMode, layoutDirection, hiddenFiles, showNamedRanges, showTables, setNodes, setEdges]);
 
   // Highlight file: select its nodes and fit view to them
@@ -113,6 +116,41 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
     (connection: Connection) => setEdges((eds) => addEdge(connection, eds)),
     [setEdges],
   );
+
+  // Mark manually dragged nodes as pinned so reorganize preserves their positions
+  const onNodeDragStop: NodeMouseHandler = useCallback((_event, node) => {
+    setPinnedNodeIds((prev) => {
+      const next = new Set(prev);
+      next.add(node.id);
+      return next;
+    });
+  }, []);
+
+  // Recompute layout using the active mode/direction, preserving pinned nodes
+  const handleReorganize = useCallback(() => {
+    setNodes((current) => {
+      try {
+        const reorg = reorganizeLayout(current, edges, layoutMode, layoutDirection, pinnedNodeIds);
+        return reorg.map((n) => ({
+          ...n,
+          style: { ...n.style, transition: 'transform 350ms ease-in-out' },
+        }));
+      } catch {
+        return current; // fall back to current positions on error
+      }
+    });
+    // Fit view to updated layout, then clean up transition styles
+    setTimeout(() => {
+      fitView({ padding: 0.25, duration: 350 });
+      setNodes((current) =>
+        current.map((n) => {
+          const s = { ...(n.style ?? {}) } as Record<string, unknown>;
+          delete s.transition;
+          return { ...n, style: s as CSSProperties };
+        }),
+      );
+    }, 400);
+  }, [edges, layoutMode, layoutDirection, pinnedNodeIds, setNodes, fitView]);
 
   // Focus mode: directional BFS to find N-hop neighbors
   // Edge direction: source → target (source provides data, target consumes)
@@ -252,6 +290,7 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
+        onNodeDragStop={onNodeDragStop}
         onSelectionChange={onSelectionChange}
         onPaneClick={onPaneClick}
         multiSelectionKeyCode="Shift"
@@ -291,6 +330,7 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
         layoutDirection={layoutDirection}
         onDirectionChange={setLayoutDirection}
         onFitView={() => fitView({ padding: 0.25, duration: 400 })}
+        onReorganize={handleReorganize}
       />
       <EdgeKindFilterBar filter={edgeKindFilter} onFilterChange={setEdgeKindFilter} showNamedRanges={showNamedRanges} showTables={showTables} />
 

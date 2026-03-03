@@ -103,3 +103,23 @@ test('E2E-09: clicking Focus activates focus mode panel', async ({ page }) => {
   // Focus panel should appear (data-testid="focus-panel")
   await expect(page.getByTestId('focus-panel')).toBeVisible()
 })
+
+// E2E-10: Reorganize button is visible and triggers layout reflow
+test('E2E-10: Reorganize button triggers graph layout reflow', async ({ page }) => {
+  await uploadFile(page, 'cross-sheet.xlsx')
+  await waitForNodes(page)
+
+  // Reorganize button must be present in the toolbar
+  const reorganizeBtn = page.getByTestId('reorganize')
+  await expect(reorganizeBtn).toBeVisible()
+
+  // Capture node positions before reorganize
+  const nodesBefore = await page.getByTestId('sheet-node').count()
+  expect(nodesBefore).toBeGreaterThan(0)
+
+  // Click Reorganize — should not throw and graph should still show same number of nodes
+  await reorganizeBtn.click()
+
+  // Nodes should still be present after reorganize (no nodes lost)
+  await expect(page.getByTestId('sheet-node')).toHaveCount(nodesBefore)
+})

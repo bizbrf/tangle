@@ -325,3 +325,50 @@ describe('GRAPH-07: named range nodes toggle with showNamedRanges flag', () => {
     expect(edges[0].data!.edgeKind).not.toBe('named-range')
   })
 })
+
+// ── GRAPH-08: table nodes toggle with showTables flag ─────────────────────────
+
+describe('GRAPH-08: table nodes toggle with showTables flag', () => {
+  const tableRef: SheetReference = {
+    targetWorkbook: null,
+    targetSheet: 'Data',
+    cells: ['A1:B10'],
+    formula: 'SUM(SalesTable[Amount])',
+    sourceCell: 'A1',
+    tableName: 'SalesTable',
+  }
+  const wbWithTable = makeWorkbook('FileA.xlsx', [
+    { sheetName: 'Summary', refs: [tableRef] },
+    { sheetName: 'Data' },
+  ])
+
+  it('showTables=false: no table nodes in output', () => {
+    const { nodes } = buildGraph([wbWithTable], 'graph', new Set(), false, false)
+    expect(nodes.some(n => n.data.isTable)).toBe(false)
+  })
+
+  it('showTables=true: table node appears in output', () => {
+    const { nodes } = buildGraph([wbWithTable], 'graph', new Set(), false, true)
+    expect(nodes.some(n => n.data.isTable)).toBe(true)
+  })
+
+  it('showTables=true: table node has correct tableName', () => {
+    const { nodes } = buildGraph([wbWithTable], 'graph', new Set(), false, true)
+    const tblNode = nodes.find(n => n.data.isTable)
+    expect(tblNode).toBeDefined()
+    expect(tblNode?.data.tableName).toBe('SalesTable')
+  })
+
+  it('showTables=true: table edges replace the direct edge', () => {
+    const { edges } = buildGraph([wbWithTable], 'graph', new Set(), false, true)
+    // Direct edge replaced by two 'table' edges (source->table and table->consumer)
+    expect(edges.every(e => e.data!.edgeKind === 'table')).toBe(true)
+    expect(edges).toHaveLength(2)
+  })
+
+  it('showTables=false: a direct edge exists (not table kind)', () => {
+    const { edges } = buildGraph([wbWithTable], 'graph', new Set(), false, false)
+    expect(edges).toHaveLength(1)
+    expect(edges[0].data!.edgeKind).toBe('internal')
+  })
+})

@@ -1,11 +1,11 @@
 // tests/unit/parser.test.ts
 // Environment: node (default from vitest.config.ts — no environment override needed)
-// Covers: PARSE-01, PARSE-02, PARSE-03, PARSE-04, PARSE-05, PARSE-06, PARSE-07, PARSE-08
+// Covers: PARSE-01, PARSE-02, PARSE-03, PARSE-04, PARSE-05, PARSE-06, PARSE-07, PARSE-08, PARSE-12, PARSE-13
 import * as XLSX from 'xlsx'
 import { readFileSync } from 'node:fs'
 import { describe, it, expect, beforeAll } from 'vitest'
 import { FIXTURES } from '../fixtures/index'
-import { extractReferences, extractNamedRanges, buildExternalLinkMap } from '../../src/lib/parser'
+import { extractReferences, extractNamedRanges, buildExternalLinkMap, extractTables } from '../../src/lib/parser'
 
 // ── PARSE-01: Functions are importable ───────────────────────────────────────
 // Verified implicitly: if this file loads without error, the exports exist.
@@ -202,5 +202,99 @@ describe('extractReferences — named ranges (PARSE-06, PARSE-07)', () => {
     const a3Refs = references.filter(r => r.sourceCell === 'A3')
     const myRangeRefs = a3Refs.filter(r => r.namedRangeName === 'MyRange')
     expect(myRangeRefs).toHaveLength(1)
+  })
+})
+
+// ── PARSE-12: Excel table extraction ─────────────────────────────────────────
+describe('extractTables (PARSE-12)', () => {
+  it('PARSE-12: extractTables is exported and returns an empty array for a workbook with no tables', () => {
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([['val']]), 'Sheet1')
+    const tables = extractTables(wb)
+    expect(Array.isArray(tables)).toBe(true)
+    expect(tables).toHaveLength(0)
+  })
+
+  it('PARSE-12: returns table with correct name, ref, targetSheet, and cells', () => {
+    const wb = XLSX.utils.book_new()
+    const ws = XLSX.utils.aoa_to_sheet([['Name', 'Value'], ['Alice', 1]])
+    // Manually inject !tables metadata (mirrors what SheetJS sets when reading a real xlsx with tables)
+    ;(ws as Record<string, unknown>)['!tables'] = [
+      { displayName: 'SalesTable', name: 'Table1', ref: 'A1:B2' },
+    ]
+    XLSX.utils.book_append_sheet(wb, ws, 'Data')
+    const tables = extractTables(wb)
+    expect(tables).toHaveLength(1)
+    expect(tables[0].name).toBe('SalesTable')
+    expect(tables[0].ref).toBe('A1:B2')
+    expect(tables[0].targetSheet).toBe('Data')
+    expect(tables[0].cells).toBe('A1:B2')
+  })
+
+  it('PARSE-12: falls back to name property when displayName is absent', () => {
+    const wb = XLSX.utils.book_new()
+    const ws = XLSX.utils.aoa_to_sheet([['val']])
+    ;(ws as Record<string, unknown>)['!tables'] = [{ name: 'Table2', ref: 'A1:A5' }]
+    XLSX.utils.book_append_sheet(wb, ws, 'Sheet1')
+    const tables = extractTables(wb)
+    expect(tables).toHaveLength(1)
+    expect(tables[0].name).toBe('Table2')
+  })
+
+  it('PARSE-12: collects tables from multiple sheets', () => {
+    const wb = XLSX.utils.book_new()
+    const ws1 = XLSX.utils.aoa_to_sheet([['A', 'B']])
+    ;(ws1 as Record<string, unknown>)['!tables'] = [{ displayName: 'TableA', name: 'TableA', ref: 'A1:B5' }]
+    const ws2 = XLSX.utils.aoa_to_sheet([['X']])
+    ;(ws2 as Record<string, unknown>)['!tables'] = [{ displayName: 'TableB', name: 'TableB', ref: 'A1:A3' }]
+    XLSX.utils.book_append_sheet(wb, ws1, 'Sheet1')
+    XLSX.utils.book_append_sheet(wb, ws2, 'Sheet2')
+    const tables = extractTables(wb)
+    expect(tables).toHaveLength(2)
+    expect(tables.map(t => t.name).sort()).toEqual(['TableA', 'TableB'])
+    expect(tables.find(t => t.name === 'TableA')?.targetSheet).toBe('Sheet1')
+    expect(tables.find(t => t.name === 'TableB')?.targetSheet).toBe('Sheet2')
+  })
+})
+
+// ── PARSE-13: Table structured reference detection ────────────────────────────
+describe('extractReferences — table structured refs (PARSE-13)', () => {
+  it('PARSE-13: detects structured reference TableName[Column] in formula', () => {
+    const sheet: XLSX.WorkSheet = {}
+    sheet['B1'] = { t: 'n', v: 0, f: 'SUM(SalesTable[Amount])' }
+    sheet['!ref'] = 'B1:B1'
+    const tableMap = new Map([
+      ['salestable', { name: 'SalesTable', ref: 'A1:B10', targetSheet: 'Data', cells: 'A1:B10' }],
+    ])
+    const { references } = extractReferences(sheet, 'Summary', 'test.xlsx', new Map(), new Map(), tableMap)
+    const tblRef = references.find(r => r.tableName === 'SalesTable')
+    expect(tblRef).toBeDefined()
+    expect(tblRef?.targetSheet).toBe('Data')
+    expect(tblRef?.tableName).toBe('SalesTable')
+  })
+
+  it('PARSE-13: skips table ref when source and target sheet are the same (counts as withinSheetRef)', () => {
+    const sheet: XLSX.WorkSheet = {}
+    sheet['B1'] = { t: 'n', v: 0, f: 'SUM(SalesTable[Amount])' }
+    sheet['!ref'] = 'B1:B1'
+    const tableMap = new Map([
+      ['salestable', { name: 'SalesTable', ref: 'A1:B10', targetSheet: 'Data', cells: 'A1:B10' }],
+    ])
+    // Source sheet 'Data' matches table's targetSheet 'Data' → within-sheet ref
+    const { references, workload } = extractReferences(sheet, 'Data', 'test.xlsx', new Map(), new Map(), tableMap)
+    expect(references.find(r => r.tableName === 'SalesTable')).toBeUndefined()
+    expect(workload.withinSheetRefs).toBe(1)
+  })
+
+  it('PARSE-13: duplicate table name in one formula emits exactly one reference', () => {
+    const sheet: XLSX.WorkSheet = {}
+    sheet['B1'] = { t: 'n', v: 0, f: 'SalesTable[Amount]+SalesTable[Qty]' }
+    sheet['!ref'] = 'B1:B1'
+    const tableMap = new Map([
+      ['salestable', { name: 'SalesTable', ref: 'A1:B10', targetSheet: 'Data', cells: 'A1:B10' }],
+    ])
+    const { references } = extractReferences(sheet, 'Summary', 'test.xlsx', new Map(), new Map(), tableMap)
+    const tblRefs = references.filter(r => r.tableName === 'SalesTable')
+    expect(tblRefs).toHaveLength(1)
   })
 })

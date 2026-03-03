@@ -28,7 +28,7 @@ Every step occurs **locally in the browser or desktop app**.
 
 ```mermaid
 flowchart LR
-    User([fa:fa-user User]) -->|Drops .xlsx file| Browser[Browser / Tauri WebView]
+    User([User]) -->|Drops .xlsx file| Browser[Browser / Tauri WebView]
 
     subgraph LOCAL ["Your Device"]
         Browser -->|File API reads bytes| Parser["SheetJS Parser\n(in-memory)"]

@@ -43,10 +43,20 @@ jobs:
           path: './dist'
 
       - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install --with-deps chromium firefox webkit
 
       - name: E2E Tests
         run: npm run test:e2e
+
+      - name: Upload E2E test artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-${{ github.run_id }}
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 30
 
   release:
     needs: build

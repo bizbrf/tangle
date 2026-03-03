@@ -9,6 +9,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     permissions:
       contents: read
 
@@ -33,107 +34,9 @@ jobs:
 
       - name: Build
         run: npm run build
-        env:
-          VITE_PAGES: true
-
-      - name: Upload Pages artifact
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: './dist'
 
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
 
       - name: E2E Tests
         run: npm run test:e2e
-
-  release:
-    needs: build
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    outputs:
-      tag: ${{ steps.version.outputs.tag }}
-      created: ${{ steps.create.outputs.created }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Read version
-        id: version
-        run: echo "tag=v$(jq -r .version package.json)" >> $GITHUB_OUTPUT
-
-      - name: Create draft release
-        id: create
-        run: |
-          if git ls-remote --tags origin "${{ steps.version.outputs.tag }}" | grep -q .; then
-            echo "created=false" >> $GITHUB_OUTPUT
-          else
-            gh release create "${{ steps.version.outputs.tag }}" \
-              --title "${{ steps.version.outputs.tag }}" \
-              --generate-notes \
-              --draft
-            echo "created=true" >> $GITHUB_OUTPUT
-          fi
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  tauri-build:
-    needs: release
-    if: needs.release.outputs.created == 'true'
-    runs-on: windows-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-
-      - run: npm ci
-
-      - uses: dtolnay/rust-toolchain@stable
-
-      - uses: swatinem/rust-cache@v2
-        with:
-          workdir: src-tauri
-
-      - name: Sync tauri.conf.json version from package.json
-        run: |
-          $ver = (Get-Content package.json | ConvertFrom-Json).version
-          $cfg = Get-Content src-tauri/tauri.conf.json | ConvertFrom-Json
-          $cfg.version = $ver
-          $cfg | ConvertTo-Json -Depth 10 | Set-Content src-tauri/tauri.conf.json
-
-      - name: Build Tauri app
-        run: npm run tauri:build
-
-      - name: Upload installers and publish release
-        run: |
-          Copy-Item (Get-Item src-tauri/target/release/bundle/nsis/*.exe).FullName Tangle-Setup.exe
-          Copy-Item (Get-Item src-tauri/target/release/bundle/msi/*.msi).FullName Tangle-Setup.msi
-          gh release upload "${{ needs.release.outputs.tag }}" Tangle-Setup.exe Tangle-Setup.msi
-          gh release edit "${{ needs.release.outputs.tag }}" --draft=false
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  deploy:
-    needs: build
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    runs-on: ubuntu-latest
-    permissions:
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    concurrency:
-      group: pages
-      cancel-in-progress: true
-    steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4

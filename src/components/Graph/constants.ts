@@ -1,0 +1,25 @@
+// ── Design tokens ─────────────────────────────────────────────────────────────
+
+export const C = {
+  accent: '#e8445a',
+  accentDim: 'rgba(232,68,90,0.15)',
+  accentGlow: 'rgba(232,68,90,0.3)',
+  amber: '#f59e0b',
+  amberDim: 'rgba(245,158,11,0.15)',
+  amberGlow: 'rgba(245,158,11,0.3)',
+  emerald: '#10b981',
+  emeraldDim: 'rgba(16,185,129,0.15)',
+  emeraldGlow: 'rgba(16,185,129,0.3)',
+  violet: '#a78bfa',
+  violetDim: 'rgba(167,139,250,0.15)',
+  violetGlow: 'rgba(167,139,250,0.3)',
+  surface: '#131720',
+  surfaceRaised: '#191e28',
+  border: '#1e2535',
+  borderHover: '#2a3347',
+  textPrimary: '#edf0f5',
+  textSecondary: '#7b8799',
+  textMuted: '#3d4a5c',
+  bg: '#0b0d11',
+  bgPanel: '#0d1017',
+} as const;

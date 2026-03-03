@@ -1,6 +1,6 @@
 // tests/unit/graph.test.ts
 // Environment: node (default from vitest.config.ts — no override needed)
-// Covers: GRAPH-01, GRAPH-02, GRAPH-03, GRAPH-04, GRAPH-05, GRAPH-06, GRAPH-07
+// Covers: GRAPH-01, GRAPH-02, GRAPH-03, GRAPH-04, GRAPH-05, GRAPH-06, GRAPH-07, GRAPH-08
 import { describe, it, expect } from 'vitest'
 import type { WorkbookFile, SheetReference, SheetWorkload } from '../../src/types'
 import { buildGraph } from '../../src/lib/graph'
@@ -19,6 +19,7 @@ function makeWorkbook(
     id: name,
     name,
     namedRanges: [],
+    tables: [],
     sheets: sheets.map(({ sheetName, refs = [] }) => ({
       workbookName: name,
       sheetName,
@@ -85,7 +86,7 @@ describe('GRAPH-02: edges created for cross-sheet references', () => {
     const { edges } = buildGraph([wb])
     // Both refs share the same source→target pair → aggregated into one edge
     expect(edges).toHaveLength(1)
-    expect(edges[0].data.refCount).toBe(2)
+    expect(edges[0].data!.refCount).toBe(2)
   })
 })
 
@@ -134,13 +135,13 @@ describe('GRAPH-03: edge kind classification', () => {
 
   it("internal edge: same-workbook cross-sheet ref has edgeKind 'internal'", () => {
     const { edges } = buildGraph([wbA, wbB])
-    const internalEdge = edges.find(e => e.data.edgeKind === 'internal')
+    const internalEdge = edges.find(e => e.data!.edgeKind === 'internal')
     expect(internalEdge).toBeDefined()
   })
 
   it("cross-file edge: ref to uploaded workbook has edgeKind 'cross-file'", () => {
     const { edges } = buildGraph([wbA, wbB])
-    const crossFileEdge = edges.find(e => e.data.edgeKind === 'cross-file')
+    const crossFileEdge = edges.find(e => e.data!.edgeKind === 'cross-file')
     expect(crossFileEdge).toBeDefined()
   })
 
@@ -148,13 +149,13 @@ describe('GRAPH-03: edge kind classification', () => {
     // Upload only wbA — External.xlsx is not uploaded
     const { edges } = buildGraph([wbA])
     // crossFileRef now also becomes external (FileB.xlsx not uploaded)
-    const externalEdges = edges.filter(e => e.data.edgeKind === 'external')
+    const externalEdges = edges.filter(e => e.data!.edgeKind === 'external')
     expect(externalEdges.length).toBeGreaterThan(0)
   })
 
   it("named-range edge: ref with namedRangeName has edgeKind 'named-range' when showNamedRanges=true", () => {
     const { edges } = buildGraph([wbWithNR], 'graph', new Set(), true)
-    const nrEdge = edges.find(e => e.data.edgeKind === 'named-range')
+    const nrEdge = edges.find(e => e.data!.edgeKind === 'named-range')
     expect(nrEdge).toBeDefined()
   })
 })
@@ -314,13 +315,61 @@ describe('GRAPH-07: named range nodes toggle with showNamedRanges flag', () => {
   it('showNamedRanges=true: named-range edges replace the direct edge', () => {
     const { edges } = buildGraph([wbWithNR], 'graph', new Set(), true)
     // Direct edge replaced by two 'named-range' edges (source->NR and NR->consumer)
-    expect(edges.every(e => e.data.edgeKind === 'named-range')).toBe(true)
+    expect(edges.every(e => e.data!.edgeKind === 'named-range')).toBe(true)
     expect(edges).toHaveLength(2)
   })
 
   it('showNamedRanges=false: a direct edge exists (not named-range kind)', () => {
     const { edges } = buildGraph([wbWithNR], 'graph', new Set(), false)
     expect(edges).toHaveLength(1)
-    expect(edges[0].data.edgeKind).not.toBe('named-range')
+    expect(edges[0].data!.edgeKind).not.toBe('named-range')
+  })
+})
+
+// ── GRAPH-08: layout direction (LR vs TB) changes node positions ──────────────
+
+describe('GRAPH-08: layout direction (LR vs TB) changes node positions', () => {
+  const crossFileRef: SheetReference = {
+    targetWorkbook: 'FileB.xlsx',
+    targetSheet: 'Sheet1',
+    cells: ['A1'],
+    formula: '[FileB.xlsx]Sheet1!A1',
+    sourceCell: 'A1',
+  }
+  const wbA = makeWorkbook('FileA.xlsx', [{ sheetName: 'Sheet1', refs: [crossFileRef] }])
+  const wbB = makeWorkbook('FileB.xlsx', [{ sheetName: 'Sheet1' }])
+
+  it('graph layout: TB direction produces different positions than LR', () => {
+    const { nodes: lrNodes } = buildGraph([wbA, wbB], 'graph', new Set(), false, false, 'LR')
+    const { nodes: tbNodes } = buildGraph([wbA, wbB], 'graph', new Set(), false, false, 'TB')
+    expect(lrNodes.length).toBe(tbNodes.length)
+    // Compare by node ID so ordering differences don't matter
+    const tbById = new Map(tbNodes.map((n) => [n.id, n.position]))
+    const hasDiff = lrNodes.some((lr) => {
+      const tb = tbById.get(lr.id)
+      return !tb || lr.position.x !== tb.x || lr.position.y !== tb.y
+    })
+    expect(hasDiff).toBe(true)
+  })
+
+  it('grouped layout: TB direction produces different positions than LR', () => {
+    const { nodes: lrNodes } = buildGraph([wbA, wbB], 'grouped', new Set(), false, false, 'LR')
+    const { nodes: tbNodes } = buildGraph([wbA, wbB], 'grouped', new Set(), false, false, 'TB')
+    expect(lrNodes.length).toBe(tbNodes.length)
+    const tbById = new Map(tbNodes.map((n) => [n.id, n.position]))
+    const hasDiff = lrNodes.some((lr) => {
+      const tb = tbById.get(lr.id)
+      return !tb || lr.position.x !== tb.x || lr.position.y !== tb.y
+    })
+    expect(hasDiff).toBe(true)
+  })
+
+  it('TB direction returns non-empty nodes with valid positions', () => {
+    const { nodes } = buildGraph([wbA, wbB], 'graph', new Set(), false, false, 'TB')
+    expect(nodes.length).toBeGreaterThan(0)
+    for (const node of nodes) {
+      expect(node.position.x).toBeGreaterThanOrEqual(0)
+      expect(node.position.y).toBeGreaterThanOrEqual(0)
+    }
   })
 })

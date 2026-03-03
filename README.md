@@ -163,6 +163,12 @@ src/
 src-tauri/        # Tauri (Rust) desktop wrapper
 ```
 
+## Security & data privacy
+
+Tangle processes all Excel data locally — nothing is uploaded to a server. See
+**[SECURITY.md](SECURITY.md)** for a full data security review including data
+flow diagrams, dependency audit, and Tauri permission analysis.
+
 ## License
 
 MIT

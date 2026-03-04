@@ -15,7 +15,7 @@ import {
   type Node,
   type Edge,
   type OnSelectionChangeParams,
-  type NodeMouseHandler,
+  type OnNodeDrag,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 
@@ -66,6 +66,7 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
   const [pinnedNodeIds, setPinnedNodeIds] = useState<Set<string>>(new Set());
   const { fitView } = useReactFlow();
   const highlightTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const reorganizeTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   // Check if any loaded workbook has named ranges / Excel tables (for showing toggles)
   const hasNamedRanges = useMemo(() => workbooks.some((wb) => wb.namedRanges.length > 0), [workbooks]);
@@ -118,7 +119,7 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
   );
 
   // Mark manually dragged nodes as pinned so reorganize preserves their positions
-  const onNodeDragStop: NodeMouseHandler = useCallback((_event, node) => {
+  const onNodeDragStop: OnNodeDrag<Node<NodeData>> = useCallback((_event, node) => {
     setPinnedNodeIds((prev) => {
       const next = new Set(prev);
       next.add(node.id);
@@ -140,7 +141,8 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
       }
     });
     // Fit view to updated layout, then clean up transition styles
-    setTimeout(() => {
+    clearTimeout(reorganizeTimerRef.current);
+    reorganizeTimerRef.current = setTimeout(() => {
       fitView({ padding: 0.25, duration: 350 });
       setNodes((current) =>
         current.map((n) => {
@@ -151,6 +153,11 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
       );
     }, 400);
   }, [edges, layoutMode, layoutDirection, pinnedNodeIds, setNodes, fitView]);
+
+  // Clean up any pending reorganize timer on unmount
+  useEffect(() => {
+    return () => clearTimeout(reorganizeTimerRef.current);
+  }, []);
 
   // Focus mode: directional BFS to find N-hop neighbors
   // Edge direction: source → target (source provides data, target consumes)
@@ -247,14 +254,20 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
     }
 
     const mapped = focusNeighborIds
-      ? nodes.map((node) => ({
-          ...node,
-          style: {
-            ...node.style,
-            opacity: focusNeighborIds.has(node.id) ? 1 : 0.08,
-            transition: 'opacity 0.2s',
-          },
-        }))
+      ? nodes.map((node) => {
+          const existingTransition = (node.style as Record<string, unknown> | undefined)?.transition as string | undefined;
+          const composedTransition = existingTransition
+            ? `${existingTransition}, opacity 0.2s`
+            : 'opacity 0.2s';
+          return {
+            ...node,
+            style: {
+              ...node.style,
+              opacity: focusNeighborIds.has(node.id) ? 1 : 0.08,
+              transition: composedTransition,
+            },
+          };
+        })
       : nodes;
     result.push(...mapped);
     return result;

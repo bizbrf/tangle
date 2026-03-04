@@ -718,17 +718,29 @@ export function reorganizeLayout(
 ): Node<NodeData>[] {
   if (nodes.length === 0) return nodes;
 
+  // Separate pinned nodes (keep position) from free nodes (recompute position).
+  // Laying out only free nodes avoids the layout engine placing free nodes on top
+  // of pinned anchors and prevents grouped-mode group boundaries from shifting
+  // to include pinned positions.
+  const freeNodes = nodes.filter((n) => !pinnedIds.has(n.id));
+  if (freeNodes.length === 0) return nodes; // all pinned — nothing to reflow
+
   // Seeded Fisher-Yates shuffle to vary Dagre's tie-breaking for equal-rank nodes
   const rng = seededPrng(seed);
-  const shuffled = [...nodes];
+  const shuffled = [...freeNodes];
   for (let i = shuffled.length - 1; i > 0; i--) {
     const j = Math.floor(rng() * (i + 1));
     [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
   }
 
+  // Only include edges where both endpoints are free to avoid Dagre errors on
+  // missing nodes. (Edges to/from pinned nodes are excluded from the layout graph.)
+  const freeIds = new Set(freeNodes.map((n) => n.id));
+  const freeEdges = edges.filter((e) => freeIds.has(e.source) && freeIds.has(e.target));
+
   let laid: Node<NodeData>[];
   try {
-    laid = applyLayout(shuffled, edges, mode, direction);
+    laid = applyLayout(shuffled, freeEdges, mode, direction);
   } catch {
     return nodes; // fall back to current positions on error
   }

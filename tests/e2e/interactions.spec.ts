@@ -106,20 +106,58 @@ test('E2E-09: clicking Focus activates focus mode panel', async ({ page }) => {
 
 // E2E-10: Reorganize button is visible and triggers layout reflow
 test('E2E-10: Reorganize button triggers graph layout reflow', async ({ page }) => {
-  await uploadFile(page, 'cross-sheet.xlsx')
+  // Use wide.xlsx (10 sheets) so there are parallel same-rank nodes whose order
+  // the seed-based shuffle will change, producing measurable position deltas.
+  await uploadFile(page, 'wide.xlsx')
   await waitForNodes(page)
 
   // Reorganize button must be present in the toolbar
   const reorganizeBtn = page.getByTestId('reorganize')
   await expect(reorganizeBtn).toBeVisible()
 
-  // Capture node positions before reorganize
-  const nodesBefore = await page.getByTestId('sheet-node').count()
-  expect(nodesBefore).toBeGreaterThan(0)
+  // Capture node count before reorganize
+  const nodesBeforeCount = await page.getByTestId('sheet-node').count()
+  expect(nodesBeforeCount).toBeGreaterThan(0)
+  const positionsBefore = await page.$$eval(
+    '[data-testid="sheet-node"]',
+    (nodes: Element[]) =>
+      nodes.map(node => {
+        const rect = (node as HTMLElement).getBoundingClientRect()
+        return { x: rect.left, y: rect.top }
+      })
+  )
 
   // Click Reorganize — should not throw and graph should still show same number of nodes
   await reorganizeBtn.click()
 
+  // Allow layout to settle before re-reading positions
+  await page.waitForTimeout(500)
+
   // Nodes should still be present after reorganize (no nodes lost)
-  await expect(page.getByTestId('sheet-node')).toHaveCount(nodesBefore)
+  await expect(page.getByTestId('sheet-node')).toHaveCount(nodesBeforeCount)
+
+  // Capture node positions after reorganize
+  const positionsAfter = await page.$$eval(
+    '[data-testid="sheet-node"]',
+    (nodes: Element[]) =>
+      nodes.map(node => {
+        const rect = (node as HTMLElement).getBoundingClientRect()
+        return { x: rect.left, y: rect.top }
+      })
+  )
+
+  // Sanity check: same number of position entries as nodes
+  expect(positionsAfter.length).toBe(nodesBeforeCount)
+  expect(positionsBefore.length).toBe(nodesBeforeCount)
+
+  // At least one node should have moved position (layout reflow)
+  const epsilon = 1 // tolerate tiny sub-pixel differences
+  const anyMoved = positionsBefore.some((before, index) => {
+    const after = positionsAfter[index]
+    return (
+      Math.abs(before.x - after.x) > epsilon ||
+      Math.abs(before.y - after.y) > epsilon
+    )
+  })
+  expect(anyMoved).toBeTruthy()
 })

@@ -474,14 +474,63 @@ describe('GRAPH-10: reorganizeLayout', () => {
   })
 
   it('works in grouped layout mode preserving group structure', () => {
-    const { nodes, edges } = buildGraph([wbA, wbB], 'grouped')
+    // Use workbooks with 2 sheets each so vertical-stacking assertions are meaningful
+    const wbAMulti = makeWorkbook('FileA.xlsx', [
+      { sheetName: 'Sheet1', refs: [crossFileRef] },
+      { sheetName: 'Sheet2' },
+    ])
+    const wbBMulti = makeWorkbook('FileB.xlsx', [
+      { sheetName: 'Sheet1' },
+      { sheetName: 'Sheet2' },
+    ])
+    const { nodes, edges } = buildGraph([wbAMulti, wbBMulti], 'grouped')
     const result = reorganizeLayout(nodes, edges, 'grouped', 'LR')
+
+    // We should preserve the node set
     expect(result).toHaveLength(nodes.length)
-    // Nodes in the same workbook should have close x/y coordinates (within the same group column)
+
     const fileANodes = result.filter((n) => n.data.workbookName === 'FileA.xlsx')
     const fileBNodes = result.filter((n) => n.data.workbookName === 'FileB.xlsx')
     expect(fileANodes.length).toBeGreaterThan(0)
     expect(fileBNodes.length).toBeGreaterThan(0)
+
+    // For grouped layout we expect:
+    // - Nodes within the same workbook to form a vertically stacked column
+    //   (vertical spread > horizontal spread).
+    // - The workbook groups to be horizontally separated (their x-ranges do not overlap).
+
+    const xsA = fileANodes.map((n) => n.position.x)
+    const ysA = fileANodes.map((n) => n.position.y)
+    const xsB = fileBNodes.map((n) => n.position.x)
+    const ysB = fileBNodes.map((n) => n.position.y)
+
+    const minXA = Math.min(...xsA)
+    const maxXA = Math.max(...xsA)
+    const minYA = Math.min(...ysA)
+    const maxYA = Math.max(...ysA)
+    const spreadXA = maxXA - minXA
+    const spreadYA = maxYA - minYA
+
+    const minXB = Math.min(...xsB)
+    const maxXB = Math.max(...xsB)
+    const minYB = Math.min(...ysB)
+    const maxYB = Math.max(...ysB)
+    const spreadXB = maxXB - minXB
+    const spreadYB = maxYB - minYB
+
+    // Each workbook should be more "tall" than "wide" → vertically stacked nodes.
+    expect(spreadYA).toBeGreaterThan(spreadXA)
+    expect(spreadYB).toBeGreaterThan(spreadXB)
+
+    // The two workbook groups should be horizontally separated: their x-ranges
+    // should not significantly overlap. We assert that the distance between
+    // their centers is greater than the sum of their half-widths.
+    const centerXA = (minXA + maxXA) / 2
+    const centerXB = (minXB + maxXB) / 2
+    const halfWidthA = spreadXA / 2
+    const halfWidthB = spreadXB / 2
+
+    expect(Math.abs(centerXA - centerXB)).toBeGreaterThan(halfWidthA + halfWidthB)
   })
 
   it('different seeds can produce different node positions for graphs with same-rank nodes', () => {
@@ -501,5 +550,12 @@ describe('GRAPH-10: reorganizeLayout', () => {
       expect(isNaN(n.position.x)).toBe(false)
       expect(isNaN(n.position.y)).toBe(false)
     }
+    // At least one node should have a different position between the two seeds
+    const pos1 = new Map(r1.map((n) => [n.id, n.position]))
+    const anyDiff = r2.some((n) => {
+      const p = pos1.get(n.id)
+      return p && (n.position.x !== p.x || n.position.y !== p.y)
+    })
+    expect(anyDiff).toBe(true)
   })
 })

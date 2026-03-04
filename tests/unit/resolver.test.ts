@@ -341,8 +341,9 @@ describe('buildDependencyGraph', () => {
     ])
     const graph = buildDependencyGraph([wb])
     expect(graph.edges).toHaveLength(1)
-    expect(graph.edges[0].from).toBe('FileA.xlsx::Sheet1')
-    expect(graph.edges[0].to).toBe('FileA.xlsx::Sheet2')
+    // Sheet1 consumes Sheet2: edge goes dataSource (Sheet2) → consumer (Sheet1)
+    expect(graph.edges[0].from).toBe('FileA.xlsx::Sheet2')
+    expect(graph.edges[0].to).toBe('FileA.xlsx::Sheet1')
   })
 
   it('deduplicates multiple refs between the same sheet pair', () => {
@@ -405,6 +406,15 @@ describe('renameReference — table rename', () => {
   it('returns original formula unchanged when old name not found', () => {
     const formula = 'SUM(SalesTable[Amount])'
     expect(renameReference(formula, 'NoSuchTable', 'X', 'table')).toBe(formula)
+  })
+
+  it('does not corrupt sheet-range refs like OldTable!A1', () => {
+    // "OldTable!A1" uses "!" as a sheet separator — not a structured ref delimiter.
+    // The rename should only touch structured refs (OldTable[...] and OldTable.Result[...]).
+    const formula = 'OldTable!A1+OldTable[Amount]'
+    const result = renameReference(formula, 'OldTable', 'NewTable', 'table')
+    // Structured ref updated; sheet ref left untouched
+    expect(result).toBe('OldTable!A1+NewTable[Amount]')
   })
 })
 

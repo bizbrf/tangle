@@ -174,51 +174,54 @@ export function parseStructuredRefs(
 // ── Memoization cache for structured ref parsing ───────────────────────────────
 
 type ParseResult = { refs: StructuredRef[]; errors: FormulaRefError[] };
+
+/** Maximum number of entries retained in the parse cache (simple FIFO eviction). */
+const _PARSE_CACHE_MAX_SIZE = 512;
 const _parseCache = new Map<string, ParseResult>();
+
+/**
+ * Cache base (version-free) schema signatures keyed by tableMap identity.
+ * Avoids re-sorting tables on every `parseStructuredRefsCached` call.
+ */
+const _schemaBaseCache = new WeakMap<Map<string, ExcelTable>, string>();
 
 /**
  * Compute a deterministic signature for the current table schema.
  *
- * The signature is based on:
- *  - Sorted table names
- *  - For each table, a sorted list of column names if available
- *
- * This is intentionally lightweight (string concatenation rather than hashing)
- * but sufficient to invalidate cache entries when table columns change.
+ * The base signature (table names + columns) is cached in a WeakMap keyed by
+ * `tableMap` identity so it is only recomputed when the map object changes.
+ * An optional `schemaVersion` string is appended when provided.
  */
 function computeTableSchemaSignature(
   tableMap: Map<string, ExcelTable>,
   schemaVersion?: string,
 ): string {
-  const parts: string[] = [];
-
-  const sortedEntries = [...tableMap.entries()].sort(([nameA], [nameB]) =>
-    nameA.localeCompare(nameB),
-  );
-
-  for (const [tableName, table] of sortedEntries) {
-    const columnsValue = (table as ExcelTable & { columns?: unknown }).columns;
-
-    let columnNames: string[] = [];
-
-    if (Array.isArray(columnsValue)) {
-      columnNames = columnsValue
-        .map((c: unknown) => String(c))
-        .sort((a: string, b: string) => a.localeCompare(b));
-    } else if (columnsValue && typeof columnsValue === 'object') {
-      columnNames = Object.keys(columnsValue).sort((a, b) =>
-        a.localeCompare(b),
-      );
+  let base: string;
+  if (_schemaBaseCache.has(tableMap)) {
+    base = _schemaBaseCache.get(tableMap)!;
+  } else {
+    const parts: string[] = [];
+    const sortedEntries = [...tableMap.entries()].sort(([nameA], [nameB]) =>
+      nameA.localeCompare(nameB),
+    );
+    for (const [tableName, table] of sortedEntries) {
+      const columnsValue = (table as ExcelTable & { columns?: unknown }).columns;
+      let columnNames: string[] = [];
+      if (Array.isArray(columnsValue)) {
+        columnNames = columnsValue
+          .map((c: unknown) => String(c))
+          .sort((a: string, b: string) => a.localeCompare(b));
+      } else if (columnsValue && typeof columnsValue === 'object') {
+        columnNames = Object.keys(columnsValue).sort((a, b) =>
+          a.localeCompare(b),
+        );
+      }
+      parts.push(`${tableName}|${columnNames.join(';')}`);
     }
-
-    parts.push(`${tableName}|${columnNames.join(';')}`);
+    base = parts.join('\x1f');
+    _schemaBaseCache.set(tableMap, base);
   }
-
-  if (schemaVersion) {
-    parts.push(`v:${schemaVersion}`);
-  }
-
-  return parts.join('\x1f');
+  return schemaVersion ? `${base}\x1fv:${schemaVersion}` : base;
 }
 
 /**
@@ -245,6 +248,10 @@ export function parseStructuredRefsCached(
   if (_parseCache.has(cacheKey)) return _parseCache.get(cacheKey)!;
   const result = parseStructuredRefs(formula, tableMap, queryMap);
   _parseCache.set(cacheKey, result);
+  // Evict the oldest entry after insertion if we've exceeded the cap
+  if (_parseCache.size > _PARSE_CACHE_MAX_SIZE) {
+    _parseCache.delete(_parseCache.keys().next().value as string);
+  }
   return result;
 }
 
@@ -294,9 +301,10 @@ export function detectCycles(graph: DepGraph): string[][] {
   const cycles: string[][] = [];
   const cycleSigs = new Set<string>(); // deduplicate cycles
 
-  // Shared path for the current DFS stack and a set for quick membership testing
+  // Shared path for the current DFS stack; pathIndex maps node → its index in path
+  // for O(1) cycle-start lookup instead of O(n) Array.indexOf.
   const path: string[] = [];
-  const pathSet = new Set<string>();
+  const pathIndex = new Map<string, number>();
 
   type Frame = { node: string; index: number };
 
@@ -320,8 +328,8 @@ export function detectCycles(graph: DepGraph): string[][] {
       if (nodeState === 0) {
         // First time we see this node on this DFS: mark as visiting and add to path
         state.set(node, 1);
+        pathIndex.set(node, path.length);
         path.push(node);
-        pathSet.add(node);
       }
 
       const neighbors = adjacency.get(node) ?? [];
@@ -329,8 +337,8 @@ export function detectCycles(graph: DepGraph): string[][] {
       if (frame.index >= neighbors.length) {
         // All neighbors processed: mark node as done and unwind path
         state.set(node, 2);
-        path.pop();
-        pathSet.delete(node);
+        const completed = path.pop()!;
+        pathIndex.delete(completed);
         stack.pop();
         continue;
       }
@@ -340,8 +348,8 @@ export function detectCycles(graph: DepGraph): string[][] {
 
       if (neighborState === 1) {
         // Back-edge → cycle found (neighbor is on current DFS path)
-        const cycleStart = path.indexOf(neighbor);
-        if (cycleStart !== -1) {
+        const cycleStart = pathIndex.get(neighbor);
+        if (cycleStart !== undefined) {
           const cycle = path.slice(cycleStart);
           // Canonicalize by rotation: find the lexicographically smallest node and
           // rotate the cycle so it starts there. This preserves edge order (direction)
@@ -378,8 +386,10 @@ export function detectCycles(graph: DepGraph): string[][] {
  * Build a dependency graph from a list of parsed workbooks.
  *
  * Each node represents a workbook sheet (`"WorkbookName::SheetName"`).
- * Each directed edge represents a formula reference from the consumer sheet
- * to the data-source sheet.
+ * Each directed edge goes from the data-source sheet to the consumer sheet
+ * (`from: dataSource, to: consumer`), matching the convention used by
+ * `buildGraph` in `graph.ts` and producing data-source-first order in
+ * `topoSort`.
  *
  * @param workbooks  Parsed workbooks produced by `parseWorkbook()`.
  * @returns          A `DepGraph` suitable for `detectCycles()` or topological sort.
@@ -391,19 +401,19 @@ export function buildDependencyGraph(workbooks: WorkbookFile[]): DepGraph {
 
   for (const wb of workbooks) {
     for (const sheet of wb.sheets) {
-      const srcId = `${wb.name}::${sheet.sheetName}`;
-      nodeSet.add(srcId);
+      const consumerIdLocal = `${wb.name}::${sheet.sheetName}`;
+      nodeSet.add(consumerIdLocal);
 
       for (const ref of sheet.references) {
         const targetWb = ref.targetWorkbook ?? wb.name;
-        const targetId = `${targetWb}::${ref.targetSheet}`;
-        nodeSet.add(targetId);
+        const dataSourceId = `${targetWb}::${ref.targetSheet}`;
+        nodeSet.add(dataSourceId);
 
-        const edgeKey = `${srcId}->${targetId}`;
+        // Edge direction: data source → consumer (matches graph.ts convention)
+        const edgeKey = `${dataSourceId}->${consumerIdLocal}`;
         if (!edgeSeen.has(edgeKey)) {
           edgeSeen.add(edgeKey);
-          // Edge direction: consumer (srcId) depends on data source (targetId)
-          edges.push({ from: srcId, to: targetId });
+          edges.push({ from: dataSourceId, to: consumerIdLocal });
         }
       }
     }
@@ -417,8 +427,10 @@ export function buildDependencyGraph(workbooks: WorkbookFile[]): DepGraph {
 /**
  * Update a formula string when a table or column is renamed.
  *
- * - `kind: 'table'`  — replaces the table name in `TableName[…]`,
- *                      `TableName\b` (standalone), and `QueryName.Result[…]`.
+ * - `kind: 'table'`  — replaces the table name in `TableName[…]` and
+ *                      `QueryName.Result[…]` structured references only.
+ *                      Standalone bare name occurrences (e.g. in sheet refs
+ *                      like `TableName!A1`) are intentionally left untouched.
  * - `kind: 'column'` — replaces the column name in `[ColumnName]` and
  *                      `[@ColumnName]`.
  *
@@ -439,8 +451,10 @@ export function renameReference(
 ): string {
   const escaped = oldName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   if (kind === 'table') {
-    // Replace occurrences of `OldName[` and `OldName.Result[` and plain `OldName\b`
-    const re = new RegExp(`\\b${escaped}(?=\\[|\\.Result\\[|\\b)`, 'gi');
+    // Replace only in structured-ref contexts: `OldName[` or `OldName.Result[`.
+    // This avoids corrupting sheet-reference tokens like `OldName!A1` where `!`
+    // is a word boundary but not a structured-ref delimiter.
+    const re = new RegExp(`\\b${escaped}(?=\\[|\\.Result\\[)`, 'gi');
     return formula.replace(re, newName);
   } else {
     // Replace `[OldColumnName]` and `[@OldColumnName]`
@@ -453,8 +467,14 @@ export function renameReference(
 
 /**
  * Return a topologically-sorted list of node IDs from the dependency graph.
- * Nodes are returned in data-source-first order (leaves first).
- * Nodes participating in a cycle are collected in `cycleNodes`.
+ *
+ * Edges are expected to be directed `dataSource → consumer` (as emitted by
+ * `buildDependencyGraph`).  Kahn's algorithm processes nodes with in-degree 0
+ * first, which corresponds to data sources that depend on nothing — producing
+ * data-source-first (dependency-first) evaluation order.
+ *
+ * Nodes participating in a cycle are excluded from `order` and collected in
+ * `cycleNodes`.
  *
  * @param graph  A `DepGraph` (may contain cycles; they are tolerated).
  * @returns      `{ order, cycleNodes }` — deterministic evaluation order.

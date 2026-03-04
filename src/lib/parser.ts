@@ -329,7 +329,9 @@ export function extractReferences(
         const table = tableMap.get(normName);
         if (!table) continue;
         if (table.targetSheet.toLowerCase() === selfSheet) {
-          workload.withinSheetRefs++;
+          // For QueryName.Result[...] on the same sheet, the base query/table
+          // name will already have been counted in the earlier table pass.
+          // Avoid double-counting within-sheet references here.
           continue;
         }
         const key = `TBL|${table.name}|${table.targetSheet}`;

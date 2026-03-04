@@ -16,7 +16,7 @@ test('E2E-05: switching to Overview mode reduces node count', async ({ page }) =
   expect(graphCount).toBeGreaterThan(1)
 
   // Switch to Overview mode — one node per workbook
-  await page.getByTestId('layout-overview').click()
+  await page.getByTestId('view-overview').click()
 
   // Overview should have exactly 1 node (1 per uploaded workbook, no external refs)
   await expect(page.getByTestId('sheet-node')).toHaveCount(1)

@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import type { WorkbookFile } from '../../types';
 import { parseWorkbook, EXCEL_EXTENSIONS } from '../../lib/parser';
+import { resolveCollision } from '../../lib/filenameSanitizer';
 
 interface FilePanelProps {
   workbooks: WorkbookFile[];
@@ -101,10 +102,18 @@ export function FilePanel({ workbooks, onWorkbooksChange, onLocateFile, hiddenFi
       const parsed = await Promise.all(
         excelFiles.map((f) => parseWorkbook(f, crypto.randomUUID())),
       );
-      onWorkbooksChange([...workbooks, ...parsed]);
+      // Resolve storageName collisions against already-loaded workbooks and
+      // within the newly uploaded batch itself.
+      const usedStorageNames = new Set(workbooks.map((wb) => wb.storageName));
+      const resolved = parsed.map((wb) => {
+        const unique = resolveCollision(wb.storageName, usedStorageNames, wb.originalName);
+        usedStorageNames.add(unique);
+        return { ...wb, storageName: unique };
+      });
+      onWorkbooksChange([...workbooks, ...resolved]);
       setExpanded((prev) => {
         const next = new Set(prev);
-        parsed.forEach((wb) => next.add(wb.id));
+        resolved.forEach((wb) => next.add(wb.id));
         return next;
       });
     } catch {

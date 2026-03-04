@@ -34,9 +34,12 @@ export interface ParsedSheet {
 
 export interface WorkbookFile {
   id: string;
+  /** Original filename (raw File.name) — used for cross-file reference resolution. */
   name: string;
-  /** Original filename as provided by the user / OS (used for UI display). */
+  /** Original filename as provided by the user / OS (used for UI display). Equals `name`. */
   originalName: string;
+  /** OS-safe, collision-resolved storage name derived from `originalName`. */
+  storageName: string;
   sheets: ParsedSheet[];
   namedRanges: NamedRange[];
   tables: ExcelTable[];

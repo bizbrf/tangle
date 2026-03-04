@@ -11,7 +11,7 @@
  *  - Separate display name (originalName) from storage name (sanitizedName).
  */
 
-/** Maximum byte-safe length for the base name (without extension). */
+/** Maximum character length (UTF-16 code units) for the base name (without extension). */
 const MAX_BASE_LENGTH = 200;
 
 /**
@@ -68,6 +68,7 @@ export function shortHash(input: string): string {
  * 1. NFC-normalize.
  * 2. Extract the real extension from the original basename (strip trailing
  *    garbage first so "report.xlsx..." → ext=".xlsx", not "...").
+ *    Also sanitize the extension body to remove illegal characters.
  * 3. Strip path separators / traversal sequences (path-traversal prevention).
  * 4. Isolate the base by removing the extension from the end.
  * 5. Remove illegal characters from the base.
@@ -84,8 +85,15 @@ export function sanitizeFilename(filename: string): string {
 
   // 2. Derive a clean extension from the original basename.
   //    Strip trailing dots/spaces before splitting so "file.xlsx..." → ".xlsx".
+  //    Then sanitize the extension body so "file.xl?x" → ".xlx".
+  //    Keep rawExt for stripping from the base (before illegal chars are removed).
   const rawBasename = name.replace(/\\/g, '/').split('/').pop() ?? name;
-  const ext = splitExt(rawBasename.replace(/[.\s]+$/, '')).ext;
+  const rawExt = splitExt(rawBasename.replace(/[.\s]+$/, '')).ext;
+  let ext = rawExt;
+  if (ext) {
+    const extBody = ext.slice(1).replace(INVALID_CHARS_RE, '');
+    ext = extBody ? `.${extBody}` : '';
+  }
 
   // 3. Block path traversal: take only the last path component.
   let base = name.replace(/\\/g, '/');
@@ -96,12 +104,12 @@ export function sanitizeFilename(filename: string): string {
   // Strip Windows drive letters (e.g. "C:")
   base = base.replace(/^[A-Za-z]:/, '');
 
-  // 4. Remove the extension from the base so we sanitize only the name part.
-  //    For "  report.xlsx  ": find ".xlsx" in base and remove it (with surrounding noise).
-  if (ext) {
-    const extIdx = base.lastIndexOf(ext);
+  // 4. Remove the *original* extension from the base so we sanitize only the name part.
+  //    Use rawExt (not the sanitized ext) so "file.xl?x" correctly removes ".xl?x".
+  if (rawExt) {
+    const extIdx = base.lastIndexOf(rawExt);
     if (extIdx >= 0) {
-      base = base.slice(0, extIdx) + base.slice(extIdx + ext.length);
+      base = base.slice(0, extIdx) + base.slice(extIdx + rawExt.length);
     }
   }
 
@@ -134,6 +142,9 @@ export function sanitizeFilename(filename: string): string {
 
 // ── Collision handler ─────────────────────────────────────────────────────────
 
+/** Characters reserved for the collision suffix: "_" + 6 hex chars. */
+const COLLISION_SUFFIX_LEN = 7;
+
 /**
  * Given a desired sanitized filename and a Set of already-used names,
  * return a unique name by appending "_<hash6>" before the extension if needed.
@@ -142,7 +153,13 @@ export function sanitizeFilename(filename: string): string {
  * which ensures that two different original names that sanitize to the same
  * result can still produce distinct hashes. If the hash-suffixed name is also
  * taken, the seed is extended with an incrementing counter until a unique name
- * is found, guaranteeing termination.
+ * is found. This makes name exhaustion astronomically unlikely for any realistic
+ * upload volume, though it is not strictly impossible given the finite 6-hex
+ * hash space.
+ *
+ * The base is truncated to MAX_BASE_LENGTH - COLLISION_SUFFIX_LEN before
+ * appending the suffix, so the full base+suffix portion never exceeds
+ * MAX_BASE_LENGTH characters.
  */
 export function resolveCollision(
   sanitized: string,
@@ -152,8 +169,12 @@ export function resolveCollision(
   if (!used.has(sanitized)) {
     return sanitized;
   }
-  const { base, ext } = splitExt(sanitized);
+  const { base: rawBase, ext } = splitExt(sanitized);
   const seed = originalName ?? sanitized;
+  // Truncate base to leave room for the suffix so base+suffix ≤ MAX_BASE_LENGTH
+  const base = rawBase.length > MAX_BASE_LENGTH - COLLISION_SUFFIX_LEN
+    ? rawBase.slice(0, MAX_BASE_LENGTH - COLLISION_SUFFIX_LEN)
+    : rawBase;
   let candidate = `${base}_${shortHash(seed)}${ext}`;
   let attempt = 1;
   while (used.has(candidate)) {

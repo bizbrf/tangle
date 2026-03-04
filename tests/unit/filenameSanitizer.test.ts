@@ -177,6 +177,23 @@ describe('sanitizeFilename — max length', () => {
   })
 })
 
+describe('sanitizeFilename — illegal characters in extension', () => {
+  it('strips illegal characters from the extension body', () => {
+    // "?" is illegal; "xl?x" → "xlx", so extension becomes ".xlx"
+    expect(sanitizeFilename('file.xl?x')).toBe('file.xlx')
+  })
+
+  it('drops extension entirely if all extension body chars are illegal', () => {
+    // Extension "???" → all illegal → ext becomes "" → result is just base
+    expect(sanitizeFilename('report.???')).toBe('report')
+  })
+
+  it('strips control characters from the extension body', () => {
+    const result = sanitizeFilename('file.xl\x00x')
+    expect(result).toBe('file.xlx')
+  })
+})
+
 describe('sanitizeFilename — empty / all-illegal input', () => {
   it('falls back to "file" for an empty string', () => {
     expect(sanitizeFilename('')).toBe('file')
@@ -222,6 +239,26 @@ describe('resolveCollision', () => {
     const used = new Set(['README'])
     const result = resolveCollision('README', used)
     expect(result).toMatch(/^README_[0-9a-f]{6}$/)
+  })
+
+  it('truncates 200-char base to leave room for suffix so base+suffix ≤ 200', () => {
+    const longName = 'a'.repeat(200) + '.xlsx'
+    const used = new Set([longName])
+    const result = resolveCollision(longName, used)
+    expect(result).not.toBe(longName)
+    expect(result.endsWith('.xlsx')).toBe(true)
+    const { base } = splitExt(result)
+    // base = 193-char truncated + "_" + 6 hex = 200 chars
+    expect(base.length).toBeLessThanOrEqual(200)
+  })
+
+  it('handles collision for names with originally invalid extension characters', () => {
+    const sanitized = sanitizeFilename('report.tx:t') // ext ".tx" after stripping ":"? let's check
+    const used = new Set([sanitized])
+    const result = resolveCollision(sanitized, used)
+    expect(result).not.toBe(sanitized)
+    const { ext } = splitExt(sanitized)
+    expect(result.endsWith(ext)).toBe(true)
   })
 })
 

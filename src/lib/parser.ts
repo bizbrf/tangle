@@ -338,7 +338,7 @@ export function parseWorkbook(file: File, fileId: string): Promise<WorkbookFile>
         });
         const originalName = file.name;
         const storageName = sanitizeFilename(originalName);
-        resolve({ id: fileId, name: storageName, originalName, sheets, namedRanges, tables });
+        resolve({ id: fileId, name: originalName, storageName, originalName, sheets, namedRanges, tables });
       } catch (err) {
         reject(err);
       }

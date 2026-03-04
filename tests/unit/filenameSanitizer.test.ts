@@ -253,7 +253,8 @@ describe('resolveCollision', () => {
   })
 
   it('handles collision for names with originally invalid extension characters', () => {
-    const sanitized = sanitizeFilename('report.tx:t') // ext ".tx" after stripping ":"? let's check
+    // sanitizeFilename('report.tx:t') strips ':' from ext body 'tx:t' → 'txt', giving 'report.txt'
+    const sanitized = sanitizeFilename('report.tx:t')
     const used = new Set([sanitized])
     const result = resolveCollision(sanitized, used)
     expect(result).not.toBe(sanitized)

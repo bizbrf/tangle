@@ -108,7 +108,10 @@ export function FilePanel({ workbooks, onWorkbooksChange, onLocateFile, hiddenFi
       const resolved = parsed.map((wb) => {
         const unique = resolveCollision(wb.storageName, usedStorageNames, wb.originalName);
         usedStorageNames.add(unique);
-        return { ...wb, storageName: unique };
+        // Set name = storageName so graph IDs, hide/highlight state and reference
+        // resolution all use the same unique, OS-safe key. originalName is kept
+        // as-is purely for sidebar display.
+        return { ...wb, storageName: unique, name: unique };
       });
       onWorkbooksChange([...workbooks, ...resolved]);
       setExpanded((prev) => {

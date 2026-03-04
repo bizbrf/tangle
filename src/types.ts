@@ -34,11 +34,11 @@ export interface ParsedSheet {
 
 export interface WorkbookFile {
   id: string;
-  /** Original filename (raw File.name) — used for cross-file reference resolution. */
+  /** Canonical internal identifier (collision-resolved, OS-safe). Equals `storageName` after import. Used for graph IDs and hide/highlight state. */
   name: string;
-  /** Original filename as provided by the user / OS (used for UI display). Equals `name`. */
+  /** Original filename as provided by the user / OS (used for UI display only). */
   originalName: string;
-  /** OS-safe, collision-resolved storage name derived from `originalName`. */
+  /** OS-safe, sanitized storage name derived from `originalName`. Collision-resolved on import. */
   storageName: string;
   sheets: ParsedSheet[];
   namedRanges: NamedRange[];

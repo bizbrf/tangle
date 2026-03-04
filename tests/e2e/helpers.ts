@@ -44,13 +44,13 @@ export async function waitForDetailPanel(
   }
 
   const maxRetries = 3
-  for (let i = 0; i < maxRetries; i++) {
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
     await clickTarget.click({ force: true })
     try {
       await panel.waitFor({ state: 'visible', timeout: 5000 })
       return
     } catch {
-      if (i === maxRetries - 1) throw new Error('Detail panel did not appear after retrying node click')
+      if (attempt === maxRetries - 1) throw new Error(`Detail panel did not appear after ${maxRetries} click attempts`)
     }
   }
 }

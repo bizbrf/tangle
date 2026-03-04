@@ -144,14 +144,13 @@ describe('HELPER-02: computeClusterNodes — layout helper', () => {
     ])
     const { nodes } = buildGraph([wbSrc], 'grouped')
     const externalNodes = nodes.filter(n => n.data.isExternal)
-    // Need >1 external node for external cluster
-    if (externalNodes.length > 1) {
-      const clusters = computeClusterNodes(nodes)
-      const extCluster = clusters.find(c => c.id === '[cluster]__external__')
-      expect(extCluster).toBeDefined()
-      expect(extCluster?.data.isExternal).toBe(true)
-      expect(extCluster?.data.label).toBe('External Files')
-    }
+    // This setup should deterministically produce two external nodes
+    expect(externalNodes).toHaveLength(2)
+    const clusters = computeClusterNodes(nodes)
+    const extCluster = clusters.find(c => c.id === '[cluster]__external__')
+    expect(extCluster).toBeDefined()
+    expect(extCluster?.data.isExternal).toBe(true)
+    expect(extCluster?.data.label).toBe('External Files')
   })
 
   it('external cluster is not produced for a single external node', () => {

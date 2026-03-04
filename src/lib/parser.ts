@@ -138,14 +138,28 @@ export function extractTables(wb: XLSX.WorkBook): ExcelTable[] {
     if (!ws) continue;
     const rawTables = ws['!tables'];
     if (!Array.isArray(rawTables)) continue;
-    for (const entry of rawTables as { name?: string; displayName?: string; ref?: string }[]) {
+    for (const entry of rawTables as {
+      name?: string;
+      displayName?: string;
+      ref?: string;
+      columns?: Array<{ name?: string } | string>;
+    }[]) {
       if (!entry.ref) continue;
       const name = entry.displayName ?? entry.name ?? 'Table';
+      // Extract column names if SheetJS exposes them in the table metadata
+      let columns: string[] | undefined;
+      if (Array.isArray(entry.columns) && entry.columns.length > 0) {
+        const names = entry.columns.map((c) =>
+          typeof c === 'string' ? c : (c as { name?: string }).name ?? '',
+        ).filter(Boolean);
+        if (names.length > 0) columns = names;
+      }
       tables.push({
         name,
         ref: entry.ref,
         targetSheet: sheetName,
         cells: entry.ref,
+        ...(columns ? { columns } : {}),
       });
     }
   }
@@ -279,6 +293,45 @@ export function extractReferences(
         // Tables are local to the workbook; skip if same sheet as source
         if (table.targetSheet.toLowerCase() === selfSheet) {
           workload.withinSheetRefs++;
+          continue;
+        }
+        const key = `TBL|${table.name}|${table.targetSheet}`;
+        if (!byTarget.has(key)) {
+          byTarget.set(key, {
+            targetWorkbook: null,
+            targetSheet: table.targetSheet,
+            cells: [table.cells],
+            formula,
+            sourceCell: cellAddr,
+            tableName: table.name,
+          });
+        }
+      }
+    }
+
+    // Fourth pass: detect [@ColumnName] relative row references — always within-sheet
+    // These are used inside table formulas to reference the current row's column value.
+    {
+      const relRe = /\[@([^\]]+)\]/g;
+      while (relRe.exec(formula) !== null) {
+        workload.withinSheetRefs++;
+      }
+    }
+
+    // Fifth pass: detect QueryName.Result[ColumnName] — Power Query result table refs.
+    // Treat the query name as a table name and look it up in tableMap.
+    if (tableMap.size > 0) {
+      const queryResultRe = /\b([A-Za-z_\u00C0-\u024F][A-Za-z0-9_\u00C0-\u024F]*)\.Result\[([^\]]*)\]/g;
+      let qMatch: RegExpExecArray | null;
+      while ((qMatch = queryResultRe.exec(formula)) !== null) {
+        const queryName = qMatch[1];
+        const normName = queryName.toLowerCase();
+        const table = tableMap.get(normName);
+        if (!table) continue;
+        if (table.targetSheet.toLowerCase() === selfSheet) {
+          // For QueryName.Result[...] on the same sheet, the base query/table
+          // name will already have been counted in the earlier table pass.
+          // Avoid double-counting within-sheet references here.
           continue;
         }
         const key = `TBL|${table.name}|${table.targetSheet}`;

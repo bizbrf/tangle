@@ -111,13 +111,14 @@ export function parseStructuredRefs(
   // ── Pass 2: TableName[ColumnName] ─────────────────────────────────────────
   TABLE_COL_RE.lastIndex = 0;
   while ((m = TABLE_COL_RE.exec(formula)) !== null) {
-    const tableName = m[1].trimEnd();
+    const rawTableName = m[1];
+    const tableName = rawTableName.trimEnd();
     // Re-read the bracket content now that we have the table name position
-    const bracketStart = m.index + m[0].length;
+    const bracketStart = m.index + rawTableName.length;
     const bracketEnd = formula.indexOf(']', bracketStart + 1);
     if (bracketEnd === -1) continue;
     const columnContent = formula.slice(bracketStart + 1, bracketEnd);
-    const rawRef = `${tableName}[${columnContent}]`;
+    const rawRef = formula.slice(m.index, bracketEnd + 1);
 
     // Skip already-matched query-result refs
     if (seen.has(rawRef)) continue;

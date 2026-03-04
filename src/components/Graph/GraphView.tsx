@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import {
   ReactFlow,
   ReactFlowProvider,
@@ -15,11 +15,12 @@ import {
   type Node,
   type Edge,
   type OnSelectionChangeParams,
+  type OnNodeDrag,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 
 import type { WorkbookFile } from '../../types';
-import { buildGraph, computeClusterNodes, type NodeData, type EdgeData, type LayoutMode, type LayoutDirection, type GroupingMode } from '../../lib/graph';
+import { buildGraph, computeClusterNodes, reorganizeLayout, type NodeData, type EdgeData, type LayoutMode, type LayoutDirection, type GroupingMode } from '../../lib/graph';
 import { C } from './constants';
 import { edgeStrokeWidth, edgeAccentColor, edgeRestColor } from './edge-helpers';
 import { WeightedEdge } from './WeightedEdge';
@@ -116,6 +117,10 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
   const [focusDirection, setFocusDirection] = useState<'both' | 'upstream' | 'downstream'>('both');
   const { fitView } = useReactFlow();
   const highlightTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  // Ref tracking nodes the user has manually dragged — read by handleReorganize to
+  // preserve their positions without depending on React's re-render timing.
+  const pinnedNodeIdsRef = useRef<Set<string>>(new Set());
+  const reorganizeTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   // Check if any loaded workbook has named ranges / Excel tables (for showing toggles)
   const hasNamedRanges = useMemo(() => workbooks.some((wb) => wb.namedRanges.length > 0), [workbooks]);
@@ -134,6 +139,7 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
     setSelectedEdge(null);
     setSelectedNodeIds(new Set());
     setFocusNodeId(null);
+    pinnedNodeIdsRef.current = new Set();
   }, [workbooks, layoutMode, layoutDirection, groupingMode, hiddenFiles, showNamedRanges, showTables, setNodes, setEdges, viewMode]);
 
   // Auto-fit after layout changes when fitEnabled is true
@@ -216,6 +222,48 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
     (connection: Connection) => setEdges((eds) => addEdge(connection, eds)),
     [setEdges],
   );
+
+  // Mark manually dragged nodes as pinned so reorganize preserves their positions
+  const onNodeDragStop: OnNodeDrag<Node<NodeData>> = useCallback((_event, node) => {
+    const next = new Set(pinnedNodeIdsRef.current);
+    next.add(node.id);
+    pinnedNodeIdsRef.current = next;
+  }, []);
+
+  // Recompute layout using the active mode/direction, preserving pinned nodes
+  const handleReorganize = useCallback(() => {
+    // Read pinned ids from ref to always get the latest value even if a drag-stop
+    // state update hasn't caused a re-render yet (avoids stale-closure problem)
+    const latestPinned = pinnedNodeIdsRef.current;
+    setNodes((current) => {
+      try {
+        const reorg = reorganizeLayout(current, edges, layoutMode, layoutDirection, latestPinned);
+        return reorg.map((n) => ({
+          ...n,
+          style: { ...n.style, transition: 'transform 350ms ease-in-out' },
+        }));
+      } catch {
+        return current; // fall back to current positions on error
+      }
+    });
+    // Fit view to updated layout, then clean up transition styles
+    clearTimeout(reorganizeTimerRef.current);
+    reorganizeTimerRef.current = setTimeout(() => {
+      fitView({ padding: 0.25, duration: 350 });
+      setNodes((current) =>
+        current.map((n) => {
+          const s = { ...(n.style ?? {}) } as Record<string, unknown>;
+          delete s.transition;
+          return { ...n, style: s as CSSProperties };
+        }),
+      );
+    }, 400);
+  }, [edges, layoutMode, layoutDirection, setNodes, fitView]);
+
+  // Clean up any pending reorganize timer on unmount
+  useEffect(() => {
+    return () => clearTimeout(reorganizeTimerRef.current);
+  }, []);
 
   // Focus mode: directional BFS to find N-hop neighbors
   const focusNeighborIds = useMemo(() => {
@@ -309,14 +357,20 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
     }
 
     const mapped = focusNeighborIds
-      ? nodes.map((node) => ({
-          ...node,
-          style: {
-            ...node.style,
-            opacity: focusNeighborIds.has(node.id) ? 1 : 0.08,
-            transition: 'opacity 0.2s',
-          },
-        }))
+      ? nodes.map((node) => {
+          const existingTransition = (node.style as Record<string, unknown> | undefined)?.transition as string | undefined;
+          const composedTransition = existingTransition
+            ? `${existingTransition}, opacity 0.2s`
+            : 'opacity 0.2s';
+          return {
+            ...node,
+            style: {
+              ...node.style,
+              opacity: focusNeighborIds.has(node.id) ? 1 : 0.08,
+              transition: composedTransition,
+            },
+          };
+        })
       : nodes;
     result.push(...mapped);
     return result;
@@ -352,6 +406,7 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
+        onNodeDragStop={onNodeDragStop}
         onSelectionChange={onSelectionChange}
         onPaneClick={onPaneClick}
         multiSelectionKeyCode="Shift"
@@ -394,6 +449,7 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
         onGroupingChange={setGroupingMode}
         fitEnabled={fitEnabled}
         onFitToggle={toggleFit}
+        onReorganize={handleReorganize}
       />
       <EdgeKindFilterBar filter={edgeKindFilter} onFilterChange={setEdgeKindFilter} showNamedRanges={showNamedRanges} showTables={showTables} />
 

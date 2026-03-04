@@ -75,6 +75,7 @@ export function Toolbar({
   layoutDirection, onDirectionChange,
   groupingMode, onGroupingChange,
   fitEnabled, onFitToggle,
+  onReorganize,
 }: {
   viewMode: ViewMode;
   onViewModeChange: (m: ViewMode) => void;
@@ -84,6 +85,7 @@ export function Toolbar({
   onGroupingChange: (g: GroupingMode) => void;
   fitEnabled: boolean;
   onFitToggle: () => void;
+  onReorganize?: () => void;
 }) {
   return (
     <div
@@ -166,6 +168,21 @@ export function Toolbar({
       >
         Fit
       </ToolbarBtn>
+
+      {/* Reorganize button */}
+      {onReorganize && (
+        <>
+          <ToolbarDivider />
+          <ToolbarBtn
+            testId="reorganize"
+            active={false}
+            onClick={onReorganize}
+            title="Reorganize graph layout"
+          >
+            ⟳ Reorganize
+          </ToolbarBtn>
+        </>
+      )}
     </div>
   );
 }

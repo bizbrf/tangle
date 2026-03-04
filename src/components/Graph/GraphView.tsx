@@ -63,7 +63,9 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
   const [focusNodeId, setFocusNodeId] = useState<string | null>(null);
   const [focusDepth, setFocusDepth] = useState(1);
   const [focusDirection, setFocusDirection] = useState<'both' | 'upstream' | 'downstream'>('both');
-  const [pinnedNodeIds, setPinnedNodeIds] = useState<Set<string>>(new Set());
+  // Ref tracking nodes the user has manually dragged — read by handleReorganize to
+  // preserve their positions without depending on React's re-render timing.
+  const pinnedNodeIdsRef = useRef<Set<string>>(new Set());
   const { fitView } = useReactFlow();
   const highlightTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const reorganizeTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -82,7 +84,7 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
     setSelectedEdge(null);
     setSelectedNodeIds(new Set());
     setFocusNodeId(null);
-    setPinnedNodeIds(new Set());
+    pinnedNodeIdsRef.current = new Set();
   }, [workbooks, layoutMode, layoutDirection, hiddenFiles, showNamedRanges, showTables, setNodes, setEdges]);
 
   // Highlight file: select its nodes and fit view to them
@@ -120,18 +122,19 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
 
   // Mark manually dragged nodes as pinned so reorganize preserves their positions
   const onNodeDragStop: OnNodeDrag<Node<NodeData>> = useCallback((_event, node) => {
-    setPinnedNodeIds((prev) => {
-      const next = new Set(prev);
-      next.add(node.id);
-      return next;
-    });
+    const next = new Set(pinnedNodeIdsRef.current);
+    next.add(node.id);
+    pinnedNodeIdsRef.current = next;
   }, []);
 
   // Recompute layout using the active mode/direction, preserving pinned nodes
   const handleReorganize = useCallback(() => {
+    // Read pinned ids from ref to always get the latest value even if a drag-stop
+    // state update hasn't caused a re-render yet (avoids stale-closure problem)
+    const latestPinned = pinnedNodeIdsRef.current;
     setNodes((current) => {
       try {
-        const reorg = reorganizeLayout(current, edges, layoutMode, layoutDirection, pinnedNodeIds);
+        const reorg = reorganizeLayout(current, edges, layoutMode, layoutDirection, latestPinned);
         return reorg.map((n) => ({
           ...n,
           style: { ...n.style, transition: 'transform 350ms ease-in-out' },
@@ -152,7 +155,7 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
         }),
       );
     }, 400);
-  }, [edges, layoutMode, layoutDirection, pinnedNodeIds, setNodes, fitView]);
+  }, [edges, layoutMode, layoutDirection, setNodes, fitView]);
 
   // Clean up any pending reorganize timer on unmount
   useEffect(() => {

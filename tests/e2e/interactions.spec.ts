@@ -118,46 +118,37 @@ test('E2E-10: Reorganize button triggers graph layout reflow', async ({ page }) 
   // Capture node count before reorganize
   const nodesBeforeCount = await page.getByTestId('sheet-node').count()
   expect(nodesBeforeCount).toBeGreaterThan(0)
-  const positionsBefore = await page.$$eval(
-    '[data-testid="sheet-node"]',
-    (nodes: Element[]) =>
-      nodes.map(node => {
-        const rect = (node as HTMLElement).getBoundingClientRect()
-        return { x: rect.left, y: rect.top }
-      })
-  )
+
+  // Capture graph-space positions by parsing the `transform: translate(x, y)` style
+  // on the ReactFlow node wrappers (.react-flow__node). These are graph-space coordinates
+  // that are not affected by fitView()'s viewport pan/zoom changes.
+  const getGraphPositions = () =>
+    page.$$eval('.react-flow__node[data-id]', (wrappers: Element[]) =>
+      wrappers.map(el => {
+        const style = (el as HTMLElement).style.transform
+        const m = style.match(/translate\((-?[\d.]+)px,\s*(-?[\d.]+)px\)/)
+        return m ? { id: el.getAttribute('data-id')!, x: parseFloat(m[1]), y: parseFloat(m[2]) } : null
+      }).filter(Boolean) as { id: string; x: number; y: number }[]
+    )
+
+  const positionsBefore = await getGraphPositions()
+  expect(positionsBefore.length).toBe(nodesBeforeCount)
 
   // Click Reorganize — should not throw and graph should still show same number of nodes
   await reorganizeBtn.click()
 
-  // Allow layout to settle before re-reading positions
-  await page.waitForTimeout(500)
+  // Poll until at least one node moves in graph space. Using expect.poll avoids a
+  // fixed waitForTimeout and is robust against fitView() changing screen coordinates.
+  const epsilon = 1
+  await expect.poll(async () => {
+    const positionsAfter = await getGraphPositions()
+    return positionsBefore.some(before => {
+      const after = positionsAfter.find(p => p.id === before.id)
+      if (!after) return false
+      return Math.abs(before.x - after.x) > epsilon || Math.abs(before.y - after.y) > epsilon
+    })
+  }, { timeout: 3000 }).toBe(true)
 
   // Nodes should still be present after reorganize (no nodes lost)
   await expect(page.getByTestId('sheet-node')).toHaveCount(nodesBeforeCount)
-
-  // Capture node positions after reorganize
-  const positionsAfter = await page.$$eval(
-    '[data-testid="sheet-node"]',
-    (nodes: Element[]) =>
-      nodes.map(node => {
-        const rect = (node as HTMLElement).getBoundingClientRect()
-        return { x: rect.left, y: rect.top }
-      })
-  )
-
-  // Sanity check: same number of position entries as nodes
-  expect(positionsAfter.length).toBe(nodesBeforeCount)
-  expect(positionsBefore.length).toBe(nodesBeforeCount)
-
-  // At least one node should have moved position (layout reflow)
-  const epsilon = 1 // tolerate tiny sub-pixel differences
-  const anyMoved = positionsBefore.some((before, index) => {
-    const after = positionsAfter[index]
-    return (
-      Math.abs(before.x - after.x) > epsilon ||
-      Math.abs(before.y - after.y) > epsilon
-    )
-  })
-  expect(anyMoved).toBeTruthy()
 })

@@ -197,8 +197,7 @@ function computeTableSchemaSignature(
   );
 
   for (const [tableName, table] of sortedEntries) {
-    const anyTable = table as any;
-    const columnsValue = anyTable && anyTable.columns;
+    const columnsValue = (table as ExcelTable & { columns?: unknown }).columns;
 
     let columnNames: string[] = [];
 
@@ -344,10 +343,19 @@ export function detectCycles(graph: DepGraph): string[][] {
         const cycleStart = path.indexOf(neighbor);
         if (cycleStart !== -1) {
           const cycle = path.slice(cycleStart);
-          const sig = [...cycle].sort().join('\x00');
+          // Canonicalize by rotation: find the lexicographically smallest node and
+          // rotate the cycle so it starts there. This preserves edge order (direction)
+          // while producing a consistent signature for the same cycle regardless of
+          // which node DFS happened to start from.
+          const minIdx = cycle.reduce(
+            (best, node, i) => (node < cycle[best] ? i : best),
+            0,
+          );
+          const canonical = [...cycle.slice(minIdx), ...cycle.slice(0, minIdx)];
+          const sig = canonical.join('\x00');
           if (!cycleSigs.has(sig)) {
             cycleSigs.add(sig);
-            cycles.push(cycle);
+            cycles.push(canonical);
           }
         }
         continue;

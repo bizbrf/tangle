@@ -283,6 +283,45 @@ describe('detectCycles', () => {
     expect(cycles.length).toBeGreaterThan(0)
     expect(cycles[0]).toContain('A')
   })
+
+  it('canonicalizes by rotation so the same cycle found from different entry points is deduplicated', () => {
+    // A → B → C → A: regardless of which node DFS starts from, only one cycle reported
+    const graph = {
+      nodes: ['A', 'B', 'C'],
+      edges: [
+        { from: 'A', to: 'B' },
+        { from: 'B', to: 'C' },
+        { from: 'C', to: 'A' },
+      ],
+    }
+    const cycles = detectCycles(graph)
+    expect(cycles).toHaveLength(1)
+    // The canonical cycle starts at the lexicographically smallest node ('A')
+    expect(cycles[0][0]).toBe('A')
+    expect(new Set(cycles[0])).toEqual(new Set(['A', 'B', 'C']))
+  })
+
+  it('does NOT merge two distinct cycles sharing the same nodes (different edge sets)', () => {
+    // Two separate 2-cycles over the same nodes: A→B→A AND A→C→A (both distinct)
+    const graph = {
+      nodes: ['A', 'B', 'C'],
+      edges: [
+        { from: 'A', to: 'B' },
+        { from: 'B', to: 'A' }, // cycle 1: A → B → A
+        { from: 'A', to: 'C' },
+        { from: 'C', to: 'A' }, // cycle 2: A → C → A
+      ],
+    }
+    const cycles = detectCycles(graph)
+    // Both cycles contain node 'A', but they use different edges — they must not be merged
+    expect(cycles).toHaveLength(2)
+    const flatCycles = cycles.map((c) => new Set(c))
+    // Each cycle should involve a different secondary node
+    const hasBCycle = flatCycles.some((s) => s.has('B'))
+    const hasCCycle = flatCycles.some((s) => s.has('C'))
+    expect(hasBCycle).toBe(true)
+    expect(hasCCycle).toBe(true)
+  })
 })
 
 // ── buildDependencyGraph ──────────────────────────────────────────────────────

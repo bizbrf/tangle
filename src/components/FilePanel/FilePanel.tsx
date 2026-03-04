@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import type { WorkbookFile } from '../../types';
 import { parseWorkbook, EXCEL_EXTENSIONS } from '../../lib/parser';
+import { resolveCollision } from '../../lib/filenameSanitizer';
 
 interface FilePanelProps {
   workbooks: WorkbookFile[];
@@ -101,10 +102,21 @@ export function FilePanel({ workbooks, onWorkbooksChange, onLocateFile, hiddenFi
       const parsed = await Promise.all(
         excelFiles.map((f) => parseWorkbook(f, crypto.randomUUID())),
       );
-      onWorkbooksChange([...workbooks, ...parsed]);
+      // Resolve storageName collisions against already-loaded workbooks and
+      // within the newly uploaded batch itself.
+      const usedStorageNames = new Set(workbooks.map((wb) => wb.storageName));
+      const resolved = parsed.map((wb) => {
+        const unique = resolveCollision(wb.storageName, usedStorageNames, wb.originalName);
+        usedStorageNames.add(unique);
+        // Set name = storageName so graph IDs, hide/highlight state and reference
+        // resolution all use the same unique, OS-safe key. originalName is kept
+        // as-is purely for sidebar display.
+        return { ...wb, storageName: unique, name: unique };
+      });
+      onWorkbooksChange([...workbooks, ...resolved]);
       setExpanded((prev) => {
         const next = new Set(prev);
-        parsed.forEach((wb) => next.add(wb.id));
+        resolved.forEach((wb) => next.add(wb.id));
         return next;
       });
     } catch {
@@ -252,7 +264,7 @@ export function FilePanel({ workbooks, onWorkbooksChange, onLocateFile, hiddenFi
                   <span style={{ color: '#e8445a', opacity: 0.7 }}>
                     <IconFile />
                   </span>
-                  <span className="text-sm font-medium truncate" style={{ opacity: hiddenFiles?.has(wb.name) ? 0.4 : 1 }}>{wb.name}</span>
+                  <span className="text-sm font-medium truncate" style={{ opacity: hiddenFiles?.has(wb.name) ? 0.4 : 1 }}>{wb.originalName}</span>
                 </div>
                 <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity ml-1 shrink-0">
                   {onToggleHidden && (

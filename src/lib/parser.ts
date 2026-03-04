@@ -1,5 +1,6 @@
 import * as XLSX from 'xlsx';
 import type { WorkbookFile, ParsedSheet, SheetReference, SheetWorkload, NamedRange, ExcelTable } from '../types';
+import { sanitizeFilename } from './filenameSanitizer';
 
 // ── Supported Excel file types ───────────────────────────────────────────────
 export const EXCEL_EXTENSIONS = ['.xlsx', '.xls', '.xlsm', '.xlsb'];
@@ -388,7 +389,9 @@ export function parseWorkbook(file: File, fileId: string): Promise<WorkbookFile>
           const { references, workload } = extractReferences(wb.Sheets[sheetName], sheetName, file.name, linkMap, namedRangeMap, tableMap);
           return { workbookName: file.name, sheetName, references, workload };
         });
-        resolve({ id: fileId, name: file.name, sheets, namedRanges, tables });
+        const originalName = file.name;
+        const storageName = sanitizeFilename(originalName);
+        resolve({ id: fileId, name: originalName, storageName, originalName, sheets, namedRanges, tables });
       } catch (err) {
         reject(err);
       }

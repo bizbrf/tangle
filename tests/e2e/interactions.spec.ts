@@ -91,10 +91,9 @@ test('E2E-09: clicking Focus activates focus mode panel', async ({ page }) => {
 
   // Click first sheet node (may need force: true for RF canvas overlay)
   const firstNode = page.getByTestId('sheet-node').first()
-  await firstNode.click({ force: true })
 
-  // Wait for detail panel to appear
-  await waitForDetailPanel(page)
+  // Wait for detail panel to appear (retries click on slower browsers)
+  await waitForDetailPanel(page, firstNode)
 
   // Click Focus button in detail panel
   // The button text is 'Focus' (or 'Focused' if already focused)

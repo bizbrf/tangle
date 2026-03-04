@@ -13,6 +13,8 @@ export const FIXTURES = {
   large: resolve(FIXTURE_DIR, 'large.xlsx'),
   circular: resolve(FIXTURE_DIR, 'circular.xlsx'),
   malformed: resolve(FIXTURE_DIR, 'malformed.xlsx'),
+  unicodeName: resolve(FIXTURE_DIR, '财务数据.xlsx'),
+  structuredRef: resolve(FIXTURE_DIR, 'structured-ref.xlsx'),
 } as const
 
 export type FixtureName = keyof typeof FIXTURES

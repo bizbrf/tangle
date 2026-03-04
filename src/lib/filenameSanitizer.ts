@@ -1,0 +1,222 @@
+/**
+ * Filename sanitization, normalization, collision handling, and display/storage mapping.
+ *
+ * Goals:
+ *  - NFC-normalize Unicode filenames.
+ *  - Strip invalid / OS-unsafe characters.
+ *  - Prevent reserved names (Windows: CON, PRN, AUX, NUL, COM1-9, LPT1-9).
+ *  - Block path traversal (absolute paths, "../").
+ *  - Enforce a maximum base-name length (200 chars).
+ *  - Deterministic collision handling: append "_<hash6>" before the extension.
+ *  - Separate display name (originalName) from storage name (sanitizedName).
+ */
+
+/** Maximum character length (UTF-16 code units) for the base name (without extension). */
+const MAX_BASE_LENGTH = 200;
+
+/**
+ * Characters that are illegal in filenames on Windows, macOS, or Linux.
+ * Includes: \ / : * ? " < > | and control characters (0x00–0x1F).
+ */
+// eslint-disable-next-line no-control-regex
+const INVALID_CHARS_RE = /[\\/:*?"<>|\x00-\x1F]/g;
+
+/**
+ * Windows reserved device names (case-insensitive).
+ * Matching the base name (before extension) exactly.
+ */
+const RESERVED_NAMES_RE = /^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])$/i;
+
+/**
+ * Strip leading/trailing dots and spaces (Windows does not allow them).
+ */
+const LEADING_TRAILING_DOT_SPACE_RE = /^[\s.]+|[\s.]+$/g;
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+/** Split a filename into { base, ext }. Extension includes the leading dot. */
+export function splitExt(filename: string): { base: string; ext: string } {
+  const lastDot = filename.lastIndexOf('.');
+  if (lastDot <= 0) {
+    return { base: filename, ext: '' };
+  }
+  return {
+    base: filename.slice(0, lastDot),
+    ext: filename.slice(lastDot),
+  };
+}
+
+/**
+ * Produce a short, deterministic 6-character hex hash of a string.
+ * Uses a djb2-style hash — good enough for collision disambiguation.
+ */
+export function shortHash(input: string): string {
+  let h = 5381;
+  for (let i = 0; i < input.length; i++) {
+    h = Math.imul(h, 33) ^ input.charCodeAt(i);
+    h = h >>> 0; // keep 32-bit unsigned
+  }
+  return h.toString(16).padStart(8, '0').slice(-6);
+}
+
+// ── Core sanitizer ────────────────────────────────────────────────────────────
+
+/**
+ * Sanitize a single filename string.
+ *
+ * Steps:
+ * 1. NFC-normalize.
+ * 2. Extract the real extension from the original basename (strip trailing
+ *    garbage first so "report.xlsx..." → ext=".xlsx", not "...").
+ *    Also sanitize the extension body to remove illegal characters.
+ * 3. Strip path separators / traversal sequences (path-traversal prevention).
+ * 4. Isolate the base by removing the extension from the end.
+ * 5. Remove illegal characters from the base.
+ * 6. Collapse consecutive whitespace.
+ * 7. Strip leading/trailing dots and spaces from the base.
+ * 8. Handle reserved names.
+ * 9. Enforce max base length.
+ * 10. Fallback to "file" if base is empty.
+ * 11. Reassemble: base + ext.
+ */
+export function sanitizeFilename(filename: string): string {
+  // 1. NFC normalize
+  const name = filename.normalize('NFC');
+
+  // 2. Derive a clean extension from the original basename.
+  //    Strip trailing dots/spaces before splitting so "file.xlsx..." → ".xlsx".
+  //    Then sanitize the extension body so "file.xl?x" → ".xlx".
+  //    Keep rawExt for stripping from the base (before illegal chars are removed).
+  const rawBasename = name.replace(/\\/g, '/').split('/').pop() ?? name;
+  const rawExt = splitExt(rawBasename.replace(/[.\s]+$/, '')).ext;
+  let ext = rawExt;
+  if (ext) {
+    const extBody = ext.slice(1).replace(INVALID_CHARS_RE, '');
+    ext = extBody ? `.${extBody}` : '';
+  }
+
+  // 3. Block path traversal: take only the last path component.
+  let base = name.replace(/\\/g, '/');
+  const slashIdx = base.lastIndexOf('/');
+  if (slashIdx >= 0) {
+    base = base.slice(slashIdx + 1);
+  }
+  // Strip Windows drive letters (e.g. "C:")
+  base = base.replace(/^[A-Za-z]:/, '');
+
+  // 4. Remove the *original* extension from the base so we sanitize only the name part.
+  //    Use rawExt (not the sanitized ext) so "file.xl?x" correctly removes ".xl?x".
+  if (rawExt) {
+    const extIdx = base.lastIndexOf(rawExt);
+    if (extIdx >= 0) {
+      base = base.slice(0, extIdx) + base.slice(extIdx + rawExt.length);
+    }
+  }
+
+  // 5. Remove illegal characters
+  base = base.replace(INVALID_CHARS_RE, '');
+
+  // 6. Collapse consecutive whitespace
+  base = base.replace(/\s+/g, ' ');
+
+  // 7. Strip leading/trailing dots and spaces
+  base = base.replace(LEADING_TRAILING_DOT_SPACE_RE, '');
+
+  // 8. Reserved name handling — append underscore to base
+  if (RESERVED_NAMES_RE.test(base)) {
+    base += '_';
+  }
+
+  // 9. Enforce max base length (truncate if too long)
+  if (base.length > MAX_BASE_LENGTH) {
+    base = base.slice(0, MAX_BASE_LENGTH);
+  }
+
+  // 10. Fallback if empty
+  if (base.length === 0) {
+    base = 'file';
+  }
+
+  return base + ext;
+}
+
+// ── Collision handler ─────────────────────────────────────────────────────────
+
+/** Characters reserved for the collision suffix: "_" + 6 hex chars. */
+const COLLISION_SUFFIX_LEN = 7;
+
+/**
+ * Given a desired sanitized filename and a Set of already-used names,
+ * return a unique name by appending "_<hash6>" before the extension if needed.
+ *
+ * The hash seed is the original unsanitized name (passed as `originalName`),
+ * which ensures that two different original names that sanitize to the same
+ * result can still produce distinct hashes. If the hash-suffixed name is also
+ * taken, the seed is extended with an incrementing counter until a unique name
+ * is found. This makes name exhaustion astronomically unlikely for any realistic
+ * upload volume, though it is not strictly impossible given the finite 6-hex
+ * hash space.
+ *
+ * The base is truncated to MAX_BASE_LENGTH - COLLISION_SUFFIX_LEN before
+ * appending the suffix, so the full base+suffix portion never exceeds
+ * MAX_BASE_LENGTH characters.
+ */
+export function resolveCollision(
+  sanitized: string,
+  used: Set<string>,
+  originalName?: string,
+): string {
+  if (!used.has(sanitized)) {
+    return sanitized;
+  }
+  const { base: rawBase, ext } = splitExt(sanitized);
+  const seed = originalName ?? sanitized;
+  // Truncate base to leave room for the suffix so base+suffix ≤ MAX_BASE_LENGTH
+  const base = rawBase.length > MAX_BASE_LENGTH - COLLISION_SUFFIX_LEN
+    ? rawBase.slice(0, MAX_BASE_LENGTH - COLLISION_SUFFIX_LEN)
+    : rawBase;
+  let candidate = `${base}_${shortHash(seed)}${ext}`;
+  let attempt = 1;
+  while (used.has(candidate)) {
+    candidate = `${base}_${shortHash(seed + String(attempt))}${ext}`;
+    attempt++;
+  }
+  return candidate;
+}
+
+// ── FileNameEntry ─────────────────────────────────────────────────────────────
+
+export interface FileNameEntry {
+  /** The original filename as provided by the user / OS. */
+  originalName: string;
+  /** Sanitized, OS-safe storage name (may differ from originalName). */
+  sanitizedName: string;
+  /** Stable internal identifier (UUID or similar). */
+  internalId: string;
+  /** ISO timestamp of when the entry was created. */
+  createdAt: string;
+}
+
+/**
+ * Create a FileNameEntry for a file being imported.
+ *
+ * @param originalName  Raw filename from the browser File object.
+ * @param internalId    Stable ID (e.g. crypto.randomUUID()).
+ * @param usedNames     Set of sanitized names already in use (mutated in-place
+ *                      to register the new name so callers don't need to track).
+ */
+export function createFileNameEntry(
+  originalName: string,
+  internalId: string,
+  usedNames: Set<string>,
+): FileNameEntry {
+  const sanitized = sanitizeFilename(originalName);
+  const unique = resolveCollision(sanitized, usedNames, originalName);
+  usedNames.add(unique);
+  return {
+    originalName,
+    sanitizedName: unique,
+    internalId,
+    createdAt: new Date().toISOString(),
+  };
+}

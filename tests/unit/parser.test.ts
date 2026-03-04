@@ -298,3 +298,60 @@ describe('extractReferences — table structured refs (PARSE-13)', () => {
     expect(tblRefs).toHaveLength(1)
   })
 })
+
+// ── PARSE-14: [@ColumnName] relative row reference detection ──────────────────
+describe('extractReferences — [@ColumnName] relative references (PARSE-14)', () => {
+  it('PARSE-14: [@ColumnName] is counted as a withinSheetRef', () => {
+    const sheet: XLSX.WorkSheet = {}
+    sheet['C1'] = { t: 'n', v: 0, f: '[@Amount]*1.1' }
+    sheet['!ref'] = 'C1:C1'
+    const { references, workload } = extractReferences(
+      sheet, 'Data', 'test.xlsx', new Map(), new Map()
+    )
+    // [@ColumnName] is a within-table relative reference — no cross-sheet edge produced
+    expect(references).toHaveLength(0)
+    expect(workload.withinSheetRefs).toBeGreaterThanOrEqual(1)
+  })
+
+  it('PARSE-14: multiple [@Column] refs in one formula each count as a withinSheetRef', () => {
+    const sheet: XLSX.WorkSheet = {}
+    sheet['C1'] = { t: 'n', v: 0, f: '[@Price]*[@Qty]' }
+    sheet['!ref'] = 'C1:C1'
+    const { workload } = extractReferences(
+      sheet, 'Data', 'test.xlsx', new Map(), new Map()
+    )
+    expect(workload.withinSheetRefs).toBeGreaterThanOrEqual(2)
+  })
+})
+
+// ── PARSE-15: QueryName.Result[ColumnName] detection ─────────────────────────
+describe('extractReferences — QueryName.Result[Column] (PARSE-15)', () => {
+  it('PARSE-15: detects QueryName.Result[Column] and creates a table ref when query is in tableMap', () => {
+    const sheet: XLSX.WorkSheet = {}
+    sheet['B1'] = { t: 'n', v: 0, f: 'SalesQuery.Result[Revenue]' }
+    sheet['!ref'] = 'B1:B1'
+    const tableMap = new Map([
+      ['salesquery', { name: 'SalesQuery', ref: 'A1:C5', targetSheet: 'QueryOutput', cells: 'A1:C5' }],
+    ])
+    const { references } = extractReferences(
+      sheet, 'Summary', 'test.xlsx', new Map(), new Map(), tableMap
+    )
+    const tblRef = references.find(r => r.tableName === 'SalesQuery')
+    expect(tblRef).toBeDefined()
+    expect(tblRef?.targetSheet).toBe('QueryOutput')
+  })
+
+  it('PARSE-15: QueryName.Result[Column] on same sheet counts as withinSheetRef', () => {
+    const sheet: XLSX.WorkSheet = {}
+    sheet['B1'] = { t: 'n', v: 0, f: 'LocalQuery.Result[Revenue]' }
+    sheet['!ref'] = 'B1:B1'
+    const tableMap = new Map([
+      ['localquery', { name: 'LocalQuery', ref: 'A1:C5', targetSheet: 'Summary', cells: 'A1:C5' }],
+    ])
+    const { references, workload } = extractReferences(
+      sheet, 'Summary', 'test.xlsx', new Map(), new Map(), tableMap
+    )
+    expect(references.find(r => r.tableName === 'LocalQuery')).toBeUndefined()
+    expect(workload.withinSheetRefs).toBeGreaterThanOrEqual(1)
+  })
+})

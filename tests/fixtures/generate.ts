@@ -336,12 +336,10 @@ function makeUnicodeNameFixture(): void {
   console.log('[unicode-name] OK — written as 财务数据.xlsx')
 }
 
-// Fixture 13: Structured references — TableName[Column] and [@Column] formulas
+// Fixture 13: Structured references — cross-sheet formulas across 3 sheets
 function makeStructuredRefFixture(): void {
   const wb = XLSX.utils.book_new()
 
-  // Sheet with regular cross-sheet formula (SheetJS doesn't support table structured refs as .f,
-  // so we store them as formula strings — the parser reads cell.f directly)
   const data = XLSX.utils.aoa_to_sheet([['placeholder', 'placeholder', 'placeholder']])
   // Structured reference formulas stored as formula strings
   data['A1'] = { t: 'n', v: 0, f: 'Sales[Amount]' }

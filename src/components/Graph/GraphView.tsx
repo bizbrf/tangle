@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import {
   ReactFlow,
   ReactFlowProvider,
@@ -15,21 +15,44 @@ import {
   type Node,
   type Edge,
   type OnSelectionChangeParams,
+  type OnNodeDrag,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 
 import type { WorkbookFile } from '../../types';
-import { buildGraph, computeClusterNodes, type NodeData, type EdgeData, type LayoutMode, type LayoutDirection } from '../../lib/graph';
+import { buildGraph, computeClusterNodes, reorganizeLayout, type NodeData, type EdgeData, type LayoutMode, type LayoutDirection, type GroupingMode } from '../../lib/graph';
 import { C } from './constants';
 import { edgeStrokeWidth, edgeAccentColor, edgeRestColor } from './edge-helpers';
 import { WeightedEdge } from './WeightedEdge';
 import { SheetNode } from './SheetNode';
 import { ClusterNode } from './ClusterNode';
 import { DetailPanel } from './DetailPanel';
-import { Toolbar } from './Toolbar';
+import { Toolbar, type ViewMode } from './Toolbar';
 import { EdgeKindFilterBar, type EdgeKindFilterState } from './EdgeKindFilterBar';
 import { Legend } from './Legend';
 import { EmptyState } from './EmptyState';
+
+// ── URL state helpers ─────────────────────────────────────────────────────────
+
+function readUrlParams(): { viewMode: ViewMode; dir: LayoutDirection; grouping: GroupingMode; fit: boolean } {
+  const p = new URLSearchParams(window.location.search);
+  const viewMode = (p.get('view') === 'overview' ? 'overview' : 'graph') as ViewMode;
+  const dir = (p.get('dir') === 'TB' ? 'TB' : 'LR') as LayoutDirection;
+  const rawGroup = p.get('group') ?? 'off';
+  const grouping = (['off', 'by-type', 'by-table'].includes(rawGroup) ? rawGroup : 'off') as GroupingMode;
+  const fit = p.get('fit') !== 'false';
+  return { viewMode, dir, grouping, fit };
+}
+
+function writeUrlParams(viewMode: ViewMode, dir: LayoutDirection, grouping: GroupingMode, fit: boolean) {
+  const p = new URLSearchParams(window.location.search);
+  p.set('view', viewMode);
+  p.set('dir', dir);
+  p.set('group', grouping);
+  p.set('fit', String(fit));
+  const newUrl = `${window.location.pathname}?${p.toString()}${window.location.hash}`;
+  window.history.replaceState(null, '', newUrl);
+}
 
 // ── Node & edge type registries ──────────────────────────────────────────────
 
@@ -52,8 +75,38 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
   const [selectedNodes, setSelectedNodes] = useState<Node<NodeData>[]>([]);
   const [selectedEdge, setSelectedEdge] = useState<Edge<EdgeData> | null>(null);
   const [selectedNodeIds, setSelectedNodeIds] = useState<Set<string>>(new Set());
-  const [layoutMode, setLayoutMode] = useState<LayoutMode>('graph');
-  const [layoutDirection, setLayoutDirection] = useState<LayoutDirection>('LR');
+
+  // ── Persistent control state (synced to URL) ────────────────────────────────
+  const initialParams = useMemo(() => readUrlParams(), []);
+  const [viewMode, setViewModeRaw] = useState<ViewMode>(initialParams.viewMode);
+  const [layoutDirection, setLayoutDirectionRaw] = useState<LayoutDirection>(initialParams.dir);
+  const [groupingMode, setGroupingModeRaw] = useState<GroupingMode>(initialParams.grouping);
+  const [fitEnabled, setFitEnabledRaw] = useState<boolean>(initialParams.fit);
+
+  // Wrap setters to also persist to URL
+  const setViewMode = useCallback((m: ViewMode) => {
+    setViewModeRaw(m);
+    writeUrlParams(m, layoutDirection, groupingMode, fitEnabled);
+  }, [layoutDirection, groupingMode, fitEnabled]);
+  const setLayoutDirection = useCallback((d: LayoutDirection) => {
+    setLayoutDirectionRaw(d);
+    writeUrlParams(viewMode, d, groupingMode, fitEnabled);
+  }, [viewMode, groupingMode, fitEnabled]);
+  const setGroupingMode = useCallback((g: GroupingMode) => {
+    setGroupingModeRaw(g);
+    writeUrlParams(viewMode, layoutDirection, g, fitEnabled);
+  }, [viewMode, layoutDirection, fitEnabled]);
+  const toggleFit = useCallback(() => {
+    setFitEnabledRaw((f) => {
+      const next = !f;
+      writeUrlParams(viewMode, layoutDirection, groupingMode, next);
+      return next;
+    });
+  }, [viewMode, layoutDirection, groupingMode]);
+
+  // ── Derived layout mode for buildGraph ─────────────────────────────────────
+  const layoutMode: LayoutMode = viewMode === 'overview' ? 'overview' : 'graph';
+
   const [edgeKindFilter, setEdgeKindFilter] = useState<EdgeKindFilterState>({
     internal: true, 'cross-file': true, external: true, 'named-range': true, table: true,
   });
@@ -64,13 +117,20 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
   const [focusDirection, setFocusDirection] = useState<'both' | 'upstream' | 'downstream'>('both');
   const { fitView } = useReactFlow();
   const highlightTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  // Ref tracking nodes the user has manually dragged — read by handleReorganize to
+  // preserve their positions without depending on React's re-render timing.
+  const pinnedNodeIdsRef = useRef<Set<string>>(new Set());
+  const reorganizeTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   // Check if any loaded workbook has named ranges / Excel tables (for showing toggles)
   const hasNamedRanges = useMemo(() => workbooks.some((wb) => wb.namedRanges.length > 0), [workbooks]);
   const hasTables = useMemo(() => workbooks.some((wb) => wb.tables.length > 0), [workbooks]);
 
   useEffect(() => {
-    const { nodes: n, edges: e } = buildGraph(workbooks, layoutMode, hiddenFiles, showNamedRanges, showTables, layoutDirection);
+    const { nodes: n, edges: e } = buildGraph(
+      workbooks, layoutMode, hiddenFiles, showNamedRanges, showTables, layoutDirection,
+      viewMode === 'overview' ? undefined : groupingMode,
+    );
     setNodes(n);
     setEdges(e);
     // Reset selection & focus when graph data changes — intentional synchronization
@@ -79,7 +139,16 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
     setSelectedEdge(null);
     setSelectedNodeIds(new Set());
     setFocusNodeId(null);
-  }, [workbooks, layoutMode, layoutDirection, hiddenFiles, showNamedRanges, showTables, setNodes, setEdges]);
+    pinnedNodeIdsRef.current = new Set();
+  }, [workbooks, layoutMode, layoutDirection, groupingMode, hiddenFiles, showNamedRanges, showTables, setNodes, setEdges, viewMode]);
+
+  // Auto-fit after layout changes when fitEnabled is true
+  useEffect(() => {
+    if (!fitEnabled) return;
+    requestAnimationFrame(() => {
+      fitView({ padding: 0.25, duration: 300 });
+    });
+  }, [nodes, fitEnabled, fitView]);
 
   // Highlight file: select its nodes and fit view to them
   useEffect(() => {
@@ -109,14 +178,94 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
     return () => clearTimeout(highlightTimerRef.current);
   }, [highlightedFile, nodes, fitView, onHighlightClear]);
 
+  // ── Keyboard shortcuts ────────────────────────────────────────────────────
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      // Skip when focus is in an input/textarea/select
+      const tag = (e.target as HTMLElement).tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+
+      const nextView: ViewMode = viewMode === 'graph' ? 'overview' : 'graph';
+      const nextDir: LayoutDirection = layoutDirection === 'LR' ? 'TB' : 'LR';
+
+      switch (e.key) {
+        case 'g': case 'G':
+          setViewModeRaw(nextView);
+          writeUrlParams(nextView, layoutDirection, groupingMode, fitEnabled);
+          break;
+        case 'l': case 'L':
+          setLayoutDirectionRaw(nextDir);
+          writeUrlParams(viewMode, nextDir, groupingMode, fitEnabled);
+          break;
+        case 'f': case 'F':
+          toggleFit();
+          break;
+        case '1':
+          setGroupingModeRaw('off');
+          writeUrlParams(viewMode, layoutDirection, 'off', fitEnabled);
+          break;
+        case '2':
+          setGroupingModeRaw('by-type');
+          writeUrlParams(viewMode, layoutDirection, 'by-type', fitEnabled);
+          break;
+        case '3':
+          setGroupingModeRaw('by-table');
+          writeUrlParams(viewMode, layoutDirection, 'by-table', fitEnabled);
+          break;
+      }
+    }
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [viewMode, layoutDirection, groupingMode, fitEnabled, toggleFit]);
+
   const onConnect = useCallback(
     (connection: Connection) => setEdges((eds) => addEdge(connection, eds)),
     [setEdges],
   );
 
+  // Mark manually dragged nodes as pinned so reorganize preserves their positions
+  const onNodeDragStop: OnNodeDrag<Node<NodeData>> = useCallback((_event, node) => {
+    const next = new Set(pinnedNodeIdsRef.current);
+    next.add(node.id);
+    pinnedNodeIdsRef.current = next;
+  }, []);
+
+  // Recompute layout using the active mode/direction, preserving pinned nodes
+  const handleReorganize = useCallback(() => {
+    // Read pinned ids from ref to always get the latest value even if a drag-stop
+    // state update hasn't caused a re-render yet (avoids stale-closure problem)
+    const latestPinned = pinnedNodeIdsRef.current;
+    setNodes((current) => {
+      try {
+        const reorg = reorganizeLayout(current, edges, layoutMode, layoutDirection, latestPinned);
+        return reorg.map((n) => ({
+          ...n,
+          style: { ...n.style, transition: 'transform 350ms ease-in-out' },
+        }));
+      } catch {
+        return current; // fall back to current positions on error
+      }
+    });
+    // Fit view to updated layout, then clean up transition styles
+    clearTimeout(reorganizeTimerRef.current);
+    reorganizeTimerRef.current = setTimeout(() => {
+      fitView({ padding: 0.25, duration: 350 });
+      setNodes((current) =>
+        current.map((n) => {
+          const s = { ...(n.style ?? {}) } as Record<string, unknown>;
+          delete s.transition;
+          return { ...n, style: s as CSSProperties };
+        }),
+      );
+    }, 400);
+  }, [edges, layoutMode, layoutDirection, setNodes, fitView]);
+
+  // Clean up any pending reorganize timer on unmount
+  useEffect(() => {
+    return () => clearTimeout(reorganizeTimerRef.current);
+  }, []);
+
   // Focus mode: directional BFS to find N-hop neighbors
-  // Edge direction: source → target (source provides data, target consumes)
-  // Upstream = follow edges backward to sources, Downstream = follow forward to consumers
   const focusNeighborIds = useMemo(() => {
     if (!focusNodeId) return null;
     const neighbors = new Set<string>([focusNodeId]);
@@ -126,12 +275,10 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
       const next: string[] = [];
       for (const nid of frontier) {
         for (const edge of edges) {
-          // Downstream: follow source→target (nid is source, find targets)
           if ((dir === 'both' || dir === 'downstream') && edge.source === nid && !neighbors.has(edge.target)) {
             neighbors.add(edge.target);
             next.push(edge.target);
           }
-          // Upstream: follow target→source (nid is target, find sources)
           if ((dir === 'both' || dir === 'upstream') && edge.target === nid && !neighbors.has(edge.source)) {
             neighbors.add(edge.source);
             next.push(edge.source);
@@ -143,7 +290,7 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
     return neighbors;
   }, [focusNodeId, focusDepth, focusDirection, edges]);
 
-  // Apply edge filter + styles: kind-based color + ref-count weight, accent glow when highlighted
+  // Apply edge filter + styles
   const styledEdges = useMemo(() => {
     return edges.filter((edge) => {
       const kind = (edge.data as EdgeData | undefined)?.edgeKind ?? 'internal';
@@ -188,11 +335,12 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
   }, [edges, selectedNodeIds, selectedEdge, edgeKindFilter, focusNeighborIds]);
 
   // Apply focus dimming to nodes + add cluster background nodes
+  const activeGroupingMode: GroupingMode = viewMode === 'overview' ? 'off' : groupingMode;
   const styledNodes = useMemo((): Node<NodeData>[] => {
     const result: Node<NodeData>[] = [];
 
-    // Compute clusters: only in 'grouped' layout mode
-    if (layoutMode === 'grouped') {
+    // Compute clusters: only in 'by-type' or 'by-table' grouping modes
+    if (activeGroupingMode === 'by-type' || activeGroupingMode === 'by-table') {
       const clusters = computeClusterNodes(nodes);
       const styledClusters = focusNeighborIds
         ? clusters.map((c) => {
@@ -209,18 +357,24 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
     }
 
     const mapped = focusNeighborIds
-      ? nodes.map((node) => ({
-          ...node,
-          style: {
-            ...node.style,
-            opacity: focusNeighborIds.has(node.id) ? 1 : 0.08,
-            transition: 'opacity 0.2s',
-          },
-        }))
+      ? nodes.map((node) => {
+          const existingTransition = (node.style as Record<string, unknown> | undefined)?.transition as string | undefined;
+          const composedTransition = existingTransition
+            ? `${existingTransition}, opacity 0.2s`
+            : 'opacity 0.2s';
+          return {
+            ...node,
+            style: {
+              ...node.style,
+              opacity: focusNeighborIds.has(node.id) ? 1 : 0.08,
+              transition: composedTransition,
+            },
+          };
+        })
       : nodes;
     result.push(...mapped);
     return result;
-  }, [nodes, focusNeighborIds, layoutMode]);
+  }, [nodes, focusNeighborIds, activeGroupingMode]);
 
   const onSelectionChange = useCallback(
     ({ nodes: sNodes, edges: sEdges }: OnSelectionChangeParams) => {
@@ -252,6 +406,7 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
+        onNodeDragStop={onNodeDragStop}
         onSelectionChange={onSelectionChange}
         onPaneClick={onPaneClick}
         multiSelectionKeyCode="Shift"
@@ -286,16 +441,20 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
       </ReactFlow>
 
       <Toolbar
-        layoutMode={layoutMode}
-        onLayoutChange={setLayoutMode}
+        viewMode={viewMode}
+        onViewModeChange={setViewMode}
         layoutDirection={layoutDirection}
         onDirectionChange={setLayoutDirection}
-        onFitView={() => fitView({ padding: 0.25, duration: 400 })}
+        groupingMode={groupingMode}
+        onGroupingChange={setGroupingMode}
+        fitEnabled={fitEnabled}
+        onFitToggle={toggleFit}
+        onReorganize={handleReorganize}
       />
       <EdgeKindFilterBar filter={edgeKindFilter} onFilterChange={setEdgeKindFilter} showNamedRanges={showNamedRanges} showTables={showTables} />
 
       {/* Named Ranges toggle — only shown when workbooks contain named ranges */}
-      {hasNamedRanges && layoutMode !== 'overview' && (
+      {hasNamedRanges && viewMode !== 'overview' && (
         <button
           onClick={() => setShowNamedRanges((v) => !v)}
           style={{
@@ -319,7 +478,7 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
       )}
 
       {/* Tables toggle — only shown when workbooks contain Excel tables */}
-      {hasTables && layoutMode !== 'overview' && (
+      {hasTables && viewMode !== 'overview' && (
         <button
           onClick={() => setShowTables((v) => !v)}
           style={{
@@ -375,7 +534,6 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
             </button>
           ))}
           <div style={{ width: 1, height: 16, background: C.border }} />
-          {/* Direction toggle */}
           {(['upstream', 'both', 'downstream'] as const).map((dir) => {
             const active = focusDirection === dir;
             const labels = { upstream: '↑ Up', both: '↕ Both', downstream: '↓ Down' };

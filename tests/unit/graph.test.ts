@@ -1,9 +1,9 @@
 // tests/unit/graph.test.ts
 // Environment: node (default from vitest.config.ts — no override needed)
-// Covers: GRAPH-01, GRAPH-02, GRAPH-03, GRAPH-04, GRAPH-05, GRAPH-06, GRAPH-07, GRAPH-08, GRAPH-09
+// Covers: GRAPH-01, GRAPH-02, GRAPH-03, GRAPH-04, GRAPH-05, GRAPH-06, GRAPH-07, GRAPH-08, GRAPH-09, GRAPH-10
 import { describe, it, expect } from 'vitest'
 import type { WorkbookFile, SheetReference, SheetWorkload } from '../../src/types'
-import { buildGraph } from '../../src/lib/graph'
+import { buildGraph, reorganizeLayout } from '../../src/lib/graph'
 
 // ── Shared factory ────────────────────────────────────────────────────────────
 
@@ -18,6 +18,8 @@ function makeWorkbook(
   return {
     id: name,
     name,
+    originalName: name,
+    storageName: name,
     namedRanges: [],
     tables: [],
     sheets: sheets.map(({ sheetName, refs = [] }) => ({
@@ -418,5 +420,142 @@ describe('GRAPH-09: table nodes toggle with showTables flag', () => {
     const { edges } = buildGraph([wbWithTable], 'graph', new Set(), false, false)
     expect(edges).toHaveLength(1)
     expect(edges[0].data!.edgeKind).toBe('internal')
+  })
+})
+
+// ── GRAPH-10: reorganizeLayout ────────────────────────────────────────────────
+
+describe('GRAPH-10: reorganizeLayout', () => {
+  const crossFileRef: SheetReference = {
+    targetWorkbook: 'FileB.xlsx',
+    targetSheet: 'Sheet1',
+    cells: ['A1'],
+    formula: '[FileB.xlsx]Sheet1!A1',
+    sourceCell: 'A1',
+  }
+  const wbA = makeWorkbook('FileA.xlsx', [{ sheetName: 'Sheet1', refs: [crossFileRef] }])
+  const wbB = makeWorkbook('FileB.xlsx', [{ sheetName: 'Sheet1' }])
+
+  it('returns all nodes with valid numeric positions', () => {
+    const { nodes, edges } = buildGraph([wbA, wbB])
+    const result = reorganizeLayout(nodes, edges, 'graph', 'LR')
+    expect(result).toHaveLength(nodes.length)
+    for (const n of result) {
+      expect(typeof n.position.x).toBe('number')
+      expect(typeof n.position.y).toBe('number')
+      expect(isNaN(n.position.x)).toBe(false)
+      expect(isNaN(n.position.y)).toBe(false)
+    }
+  })
+
+  it('pinned nodes retain their original positions', () => {
+    const { nodes, edges } = buildGraph([wbA, wbB])
+    const pinnedId = nodes[0].id
+    const originalPos = { ...nodes[0].position }
+    const pinnedIds = new Set([pinnedId])
+    const result = reorganizeLayout(nodes, edges, 'graph', 'LR', pinnedIds, 1)
+    const pinned = result.find((n) => n.id === pinnedId)!
+    expect(pinned.position.x).toBe(originalPos.x)
+    expect(pinned.position.y).toBe(originalPos.y)
+  })
+
+  it('same seed produces identical positions (determinism)', () => {
+    const { nodes, edges } = buildGraph([wbA, wbB])
+    const r1 = reorganizeLayout(nodes, edges, 'graph', 'LR', new Set(), 42)
+    const r2 = reorganizeLayout(nodes, edges, 'graph', 'LR', new Set(), 42)
+    const pos1 = new Map(r1.map((n) => [n.id, n.position]))
+    for (const n of r2) {
+      expect(n.position.x).toBe(pos1.get(n.id)!.x)
+      expect(n.position.y).toBe(pos1.get(n.id)!.y)
+    }
+  })
+
+  it('returns empty array unchanged for empty input', () => {
+    const result = reorganizeLayout([], [], 'graph', 'LR')
+    expect(result).toHaveLength(0)
+  })
+
+  it('works in grouped layout mode preserving group structure', () => {
+    // Use workbooks with 2 sheets each so vertical-stacking assertions are meaningful
+    const wbAMulti = makeWorkbook('FileA.xlsx', [
+      { sheetName: 'Sheet1', refs: [crossFileRef] },
+      { sheetName: 'Sheet2' },
+    ])
+    const wbBMulti = makeWorkbook('FileB.xlsx', [
+      { sheetName: 'Sheet1' },
+      { sheetName: 'Sheet2' },
+    ])
+    const { nodes, edges } = buildGraph([wbAMulti, wbBMulti], 'grouped')
+    const result = reorganizeLayout(nodes, edges, 'grouped', 'LR')
+
+    // We should preserve the node set
+    expect(result).toHaveLength(nodes.length)
+
+    const fileANodes = result.filter((n) => n.data.workbookName === 'FileA.xlsx')
+    const fileBNodes = result.filter((n) => n.data.workbookName === 'FileB.xlsx')
+    expect(fileANodes.length).toBeGreaterThan(0)
+    expect(fileBNodes.length).toBeGreaterThan(0)
+
+    const xsA = fileANodes.map((n) => n.position.x)
+    const ysA = fileANodes.map((n) => n.position.y)
+    const xsB = fileBNodes.map((n) => n.position.x)
+    const ysB = fileBNodes.map((n) => n.position.y)
+
+    const minXA = Math.min(...xsA)
+    const maxXA = Math.max(...xsA)
+    const minYA = Math.min(...ysA)
+    const maxYA = Math.max(...ysA)
+    const spreadXA = maxXA - minXA
+    const spreadYA = maxYA - minYA
+
+    const minXB = Math.min(...xsB)
+    const maxXB = Math.max(...xsB)
+    const minYB = Math.min(...ysB)
+    const maxYB = Math.max(...ysB)
+    const spreadXB = maxXB - minXB
+    const spreadYB = maxYB - minYB
+
+    // Each workbook should be more "tall" than "wide" → vertically stacked nodes.
+    expect(spreadYA).toBeGreaterThan(spreadXA)
+    expect(spreadYB).toBeGreaterThan(spreadXB)
+
+    // The two workbook groups should be horizontally separated: their x-ranges
+    // should not significantly overlap. We assert that the distance between
+    // their centers is greater than the sum of their half-widths.
+    const centerXA = (minXA + maxXA) / 2
+    const centerXB = (minXB + maxXB) / 2
+    const halfWidthA = spreadXA / 2
+    const halfWidthB = spreadXB / 2
+
+    expect(Math.abs(centerXA - centerXB)).toBeGreaterThan(halfWidthA + halfWidthB)
+  })
+
+  it('seed parameter is accepted and produces complete valid output', () => {
+    // Verifies the seed parameter is accepted without error and that both
+    // results contain all nodes with valid positions. Position identity between
+    // seeds is not asserted because Dagre computes positions from graph
+    // topology rather than node insertion order.
+    const wbAMulti = makeWorkbook('FileA.xlsx', [
+      { sheetName: 'Sheet1', refs: [crossFileRef] },
+      { sheetName: 'Sheet2' },
+      { sheetName: 'Sheet3' },
+    ])
+    const wbBMulti = makeWorkbook('FileB.xlsx', [
+      { sheetName: 'Sheet1' },
+      { sheetName: 'Sheet2' },
+      { sheetName: 'Sheet3' },
+    ])
+    const { nodes, edges } = buildGraph([wbAMulti, wbBMulti])
+    const r1 = reorganizeLayout(nodes, edges, 'graph', 'LR', new Set(), 1)
+    const r2 = reorganizeLayout(nodes, edges, 'graph', 'LR', new Set(), 99)
+    // Both results must contain all nodes with valid positions
+    expect(r1).toHaveLength(nodes.length)
+    expect(r2).toHaveLength(nodes.length)
+    for (const n of [...r1, ...r2]) {
+      expect(typeof n.position.x).toBe('number')
+      expect(typeof n.position.y).toBe('number')
+      expect(isNaN(n.position.x)).toBe(false)
+      expect(isNaN(n.position.y)).toBe(false)
+    }
   })
 })

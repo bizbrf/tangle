@@ -38,6 +38,7 @@ export type EdgeData = {
 
 export type LayoutMode = 'graph' | 'grouped' | 'overview';
 export type LayoutDirection = 'LR' | 'TB';
+export type GroupingMode = 'off' | 'by-type' | 'by-table';
 
 const NODE_W = 190;
 const NODE_H = 88;
@@ -61,6 +62,7 @@ export function buildGraph(
   showNamedRanges: boolean = false,
   showTables: boolean = false,
   layoutDirection: LayoutDirection = 'LR',
+  groupingMode?: GroupingMode,
 ): { nodes: Node<NodeData>[]; edges: Edge<EdgeData>[] } {
   const visibleWorkbooks = hiddenFiles.size > 0
     ? workbooks.filter((wb) => !hiddenFiles.has(wb.name))
@@ -243,7 +245,7 @@ export function buildGraph(
     };
   });
 
-  const nodeList = applyLayout(Array.from(nodesMap.values()), edges, layoutMode, layoutDirection);
+  const nodeList = applyLayout(Array.from(nodesMap.values()), edges, layoutMode, layoutDirection, groupingMode);
   return { nodes: nodeList, edges };
 }
 
@@ -254,7 +256,12 @@ function applyLayout(
   edges: Edge<EdgeData>[],
   mode: LayoutMode,
   direction: LayoutDirection = 'LR',
+  groupingMode?: GroupingMode,
 ): Node<NodeData>[] {
+  // groupingMode takes precedence over legacy layoutMode when provided
+  if (groupingMode === 'by-type') return groupedLayout(nodes, edges, direction);
+  if (groupingMode === 'by-table') return byTableLayout(nodes, edges, direction);
+  if (groupingMode === 'off') return dagreLayout(nodes, edges, direction);
   if (mode === 'grouped') return groupedLayout(nodes, edges, direction);
   return dagreLayout(nodes, edges, direction);
 }
@@ -273,8 +280,12 @@ function dagreLayout(
     marginy: 60,
   });
 
-  nodes.forEach((n) => g.setNode(n.id, { width: NODE_W, height: NODE_H }));
-  edges.forEach((e) => g.setEdge(e.source, e.target));
+  // Sort for deterministic layout: same input always produces same positions
+  const sortedNodes = [...nodes].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  const sortedEdges = [...edges].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+
+  sortedNodes.forEach((n) => g.setNode(n.id, { width: NODE_W, height: NODE_H }));
+  sortedEdges.forEach((e) => g.setEdge(e.source, e.target));
 
   Dagre.layout(g);
 
@@ -385,6 +396,106 @@ function groupedLayout(nodes: Node<NodeData>[], edges: Edge<EdgeData>[], directi
           x: groupX + INTRA_PAD_X,
           y: groupY + INTRA_PAD_Y + row * INTRA_VGAP,
         },
+      });
+    });
+  }
+
+  return result;
+}
+
+// ── By-Table grouping layout ──────────────────────────────────────────────────
+// Groups nodes by their table membership: nodes that reference the same Excel
+// table (via tableName) are placed in the same cluster. Nodes without a table
+// reference fall into a group keyed by their workbook name.
+
+function byTableLayout(nodes: Node<NodeData>[], edges: Edge<EdgeData>[], direction: LayoutDirection = 'LR'): Node<NodeData>[] {
+  const INTRA_VGAP = 100;
+  const INTRA_PAD_X = 40;
+  const INTRA_PAD_Y = 56;
+  const INTRA_PAD_BOTTOM = 30;
+
+  // Assign each node to a group key: prefer tableName, fall back to workbookName
+  const groups = new Map<string, Node<NodeData>[]>();
+  const externalNodes: Node<NodeData>[] = [];
+
+  for (const node of nodes) {
+    if (node.data.isExternal) {
+      externalNodes.push(node);
+      continue;
+    }
+    const key = node.data.tableName
+      ? `[tbl]${node.data.workbookName}::${node.data.tableName}`
+      : `[wb]${node.data.workbookName}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push(node);
+  }
+
+  // Compute bounding sizes per group
+  const groupSizes = new Map<string, { w: number; h: number }>();
+  for (const [key, members] of groups.entries()) {
+    const w = NODE_W + INTRA_PAD_X * 2;
+    const h = INTRA_PAD_Y + members.length * NODE_H + (members.length - 1) * (INTRA_VGAP - NODE_H) + INTRA_PAD_BOTTOM;
+    groupSizes.set(key, { w, h });
+  }
+
+  // Dagre graph to position groups
+  const g = new Dagre.graphlib.Graph().setDefaultEdgeLabel(() => ({}));
+  g.setGraph({ rankdir: direction, ranksep: 130, nodesep: 80, marginx: 60, marginy: 60 });
+
+  for (const [key, size] of groupSizes.entries()) {
+    g.setNode(key, { width: size.w, height: size.h });
+  }
+  if (externalNodes.length > 0) {
+    const extH = INTRA_PAD_Y + externalNodes.length * NODE_H + (externalNodes.length - 1) * (INTRA_VGAP - NODE_H) + INTRA_PAD_BOTTOM;
+    g.setNode('__external__', { width: NODE_W + INTRA_PAD_X * 2, height: extH });
+  }
+
+  // Map each node to its group key
+  const nodeToGroup = new Map<string, string>();
+  for (const [key, members] of groups.entries()) {
+    for (const n of members) nodeToGroup.set(n.id, key);
+  }
+  for (const n of externalNodes) nodeToGroup.set(n.id, '__external__');
+
+  const addedGroupEdges = new Set<string>();
+  for (const edge of edges) {
+    const srcGrp = nodeToGroup.get(edge.source);
+    const tgtGrp = nodeToGroup.get(edge.target);
+    if (srcGrp && tgtGrp && srcGrp !== tgtGrp) {
+      const key = `${srcGrp}->${tgtGrp}`;
+      if (!addedGroupEdges.has(key)) {
+        addedGroupEdges.add(key);
+        g.setEdge(srcGrp, tgtGrp);
+      }
+    }
+  }
+
+  Dagre.layout(g);
+
+  const result: Node<NodeData>[] = [];
+
+  for (const [key, members] of groups.entries()) {
+    const pos = g.node(key);
+    const size = groupSizes.get(key)!;
+    const groupX = pos.x - size.w / 2;
+    const groupY = pos.y - size.h / 2;
+    members.forEach((node, row) => {
+      result.push({
+        ...node,
+        position: { x: groupX + INTRA_PAD_X, y: groupY + INTRA_PAD_Y + row * INTRA_VGAP },
+      });
+    });
+  }
+
+  if (externalNodes.length > 0) {
+    const pos = g.node('__external__');
+    const extSize = g.node('__external__');
+    const groupX = pos.x - extSize.width / 2;
+    const groupY = pos.y - extSize.height / 2;
+    externalNodes.forEach((node, row) => {
+      result.push({
+        ...node,
+        position: { x: groupX + INTRA_PAD_X, y: groupY + INTRA_PAD_Y + row * INTRA_VGAP },
       });
     });
   }
@@ -686,4 +797,71 @@ function makeTableNode(id: string, workbookName: string, tableName: string, cell
       workload: null,
     },
   };
+}
+
+// ── Reorganize layout ─────────────────────────────────────────────────────────
+
+/** Seeded LCG pseudo-random number generator. Returns values in [0, 1). */
+function seededPrng(seed: number): () => number {
+  let s = (seed >>> 0) || 1;
+  return () => {
+    s = ((Math.imul(1664525, s) + 1013904223) >>> 0);
+    return s / 0x100000000;
+  };
+}
+
+/**
+ * Re-compute layout positions for the current node/edge set without rebuilding
+ * the graph from source data. Useful for reflowing a messy graph on demand.
+ *
+ * - Pinned nodes (ids in `pinnedIds`) keep their existing positions unchanged.
+ * - The numeric `seed` controls node ordering fed to the layout engine so that
+ *   the same graph + seed always produces the same output (deterministic).
+ * - Falls back to the input positions if the layout engine throws.
+ */
+export function reorganizeLayout(
+  nodes: Node<NodeData>[],
+  edges: Edge<EdgeData>[],
+  mode: LayoutMode,
+  direction: LayoutDirection = 'LR',
+  pinnedIds: Set<string> = new Set(),
+  seed: number = 1,
+): Node<NodeData>[] {
+  if (nodes.length === 0) return nodes;
+
+  // Separate pinned nodes (keep position) from free nodes (recompute position).
+  // Laying out only free nodes avoids the layout engine placing free nodes on top
+  // of pinned anchors and prevents grouped-mode group boundaries from shifting
+  // to include pinned positions.
+  const freeNodes = nodes.filter((n) => !pinnedIds.has(n.id));
+  if (freeNodes.length === 0) return nodes; // all pinned — nothing to reflow
+
+  // Seeded Fisher-Yates shuffle to vary Dagre's tie-breaking for equal-rank nodes
+  const rng = seededPrng(seed);
+  const shuffled = [...freeNodes];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+
+  // Only include edges where both endpoints are free to avoid Dagre errors on
+  // missing nodes. (Edges to/from pinned nodes are excluded from the layout graph.)
+  const freeIds = new Set(freeNodes.map((n) => n.id));
+  const freeEdges = edges.filter((e) => freeIds.has(e.source) && freeIds.has(e.target));
+
+  let laid: Node<NodeData>[];
+  try {
+    laid = applyLayout(shuffled, freeEdges, mode, direction);
+  } catch {
+    return nodes; // fall back to current positions on error
+  }
+
+  // Build a fast id→position map
+  const posMap = new Map(laid.map((n) => [n.id, n.position]));
+
+  // Pinned nodes keep their original positions; free nodes get the new layout
+  return nodes.map((n) => ({
+    ...n,
+    position: pinnedIds.has(n.id) ? n.position : (posMap.get(n.id) ?? n.position),
+  }));
 }

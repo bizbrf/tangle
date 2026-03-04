@@ -103,3 +103,35 @@ describe('extractReferences — circular references (PARSE-11)', () => {
     expect(w2.crossSheetRefs).toBe(1)
   })
 })
+
+// ── PARSE-19: parseWorkbook success path ──────────────────────────────────────
+
+describe('parseWorkbook — success path (PARSE-19)', () => {
+  it('PARSE-19: resolves with a WorkbookFile containing the correct id and name', async () => {
+    const buf = readFileSync(FIXTURES.crossSheet)
+    const file = new File([buf], 'cross-sheet.xlsx')
+    const result = await parseWorkbook(file, 'test-id-123')
+    expect(result.id).toBe('test-id-123')
+    expect(result.name).toBe('cross-sheet.xlsx')
+  })
+
+  it('PARSE-19: resolved WorkbookFile has sheets, namedRanges, and tables arrays', async () => {
+    const buf = readFileSync(FIXTURES.crossSheet)
+    const file = new File([buf], 'cross-sheet.xlsx')
+    const result = await parseWorkbook(file, 'test-id')
+    expect(result.sheets.length).toBeGreaterThan(0)
+    expect(Array.isArray(result.namedRanges)).toBe(true)
+    expect(Array.isArray(result.tables)).toBe(true)
+  })
+
+  it('PARSE-19: resolved sheets contain references detected from formulas', async () => {
+    // cross-sheet.xlsx has Sheet1.A1.f = 'Sheet2!A1' — should detect one cross-sheet ref
+    const buf = readFileSync(FIXTURES.crossSheet)
+    const file = new File([buf], 'cross-sheet.xlsx')
+    const result = await parseWorkbook(file, 'test-id')
+    const sheet1 = result.sheets.find(s => s.sheetName === 'Sheet1')
+    expect(sheet1).toBeDefined()
+    expect(sheet1!.references).toHaveLength(1)
+    expect(sheet1!.references[0].targetSheet).toBe('Sheet2')
+  })
+})

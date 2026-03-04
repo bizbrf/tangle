@@ -16,7 +16,7 @@ test('E2E-05: switching to Overview mode reduces node count', async ({ page }) =
   expect(graphCount).toBeGreaterThan(1)
 
   // Switch to Overview mode — one node per workbook
-  await page.getByTestId('layout-overview').click()
+  await page.getByTestId('view-overview').click()
 
   // Overview should have exactly 1 node (1 per uploaded workbook, no external refs)
   await expect(page.getByTestId('sheet-node')).toHaveCount(1)
@@ -102,4 +102,24 @@ test('E2E-09: clicking Focus activates focus mode panel', async ({ page }) => {
 
   // Focus panel should appear (data-testid="focus-panel")
   await expect(page.getByTestId('focus-panel')).toBeVisible()
+})
+
+// E2E-10: Reorganize button is visible and clickable without losing nodes
+test('E2E-10: Reorganize button preserves nodes when clicked', async ({ page }) => {
+  await uploadFile(page, 'cross-sheet.xlsx')
+  await waitForNodes(page)
+
+  // Reorganize button must be present in the toolbar
+  const reorganizeBtn = page.getByTestId('reorganize')
+  await expect(reorganizeBtn).toBeVisible()
+
+  // Capture node count before reorganize
+  const nodesBeforeCount = await page.getByTestId('sheet-node').count()
+  expect(nodesBeforeCount).toBeGreaterThan(0)
+
+  // Click Reorganize — should not throw and graph should still show same number of nodes
+  await reorganizeBtn.click()
+
+  // Nodes should still be present after reorganize (no nodes lost)
+  await expect(page.getByTestId('sheet-node')).toHaveCount(nodesBeforeCount)
 })

@@ -23,6 +23,43 @@ export interface ExcelTable {
   ref: string;          // raw range, e.g. "A1:D10"
   targetSheet: string;  // sheet where table is defined
   cells: string;        // same as ref (the cell range)
+  columns?: string[];   // column header names extracted from table metadata
+}
+
+// ── Formula reference error taxonomy ─────────────────────────────────────────
+
+export type FormulaRefErrorKind =
+  | 'MISSING_TABLE'
+  | 'MISSING_COLUMN'
+  | 'AMBIGUOUS_NAME'
+  | 'CIRCULAR_DEP'
+  | 'INVALID_REF';
+
+export interface FormulaRefError {
+  kind: FormulaRefErrorKind;
+  message: string;    // user-friendly description
+  detail?: string;    // structured internal detail
+  formula?: string;   // the formula containing the bad reference
+  ref?: string;       // the specific reference token that failed
+}
+
+// ── Structured reference types ────────────────────────────────────────────────
+
+/** Kind of structured reference found in a formula */
+export type StructuredRefKind = 'table-column' | 'relative' | 'query-result';
+
+/**
+ * A parsed structured reference extracted from an Excel formula.
+ * Examples:
+ *   - TableName[ColumnName]  → kind: 'table-column'
+ *   - QueryName.Result[Col]  → kind: 'query-result'
+ *   - [@ColumnName]          → kind: 'relative'
+ */
+export interface StructuredRef {
+  kind: StructuredRefKind;
+  tableName: string;    // table or query name (empty string for relative refs)
+  columnName?: string;  // column name if specified
+  rawRef: string;       // the exact text matched in the formula
 }
 
 export interface ParsedSheet {
@@ -34,7 +71,12 @@ export interface ParsedSheet {
 
 export interface WorkbookFile {
   id: string;
+  /** Canonical internal identifier (collision-resolved, OS-safe). Equals `storageName` after import. Used for graph IDs and hide/highlight state. */
   name: string;
+  /** Original filename as provided by the user / OS (used for UI display only). */
+  originalName: string;
+  /** OS-safe, sanitized storage name derived from `originalName`. Collision-resolved on import. */
+  storageName: string;
   sheets: ParsedSheet[];
   namedRanges: NamedRange[];
   tables: ExcelTable[];

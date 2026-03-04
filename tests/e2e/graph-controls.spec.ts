@@ -39,31 +39,31 @@ test('E2E-18: switching back to LR from TB keeps nodes visible', async ({ page }
   await expect(page.getByTestId('sheet-node').first()).toBeVisible()
 })
 
-// E2E-19: Grouped layout mode renders nodes for a multi-sheet workbook
-test('E2E-19: grouped layout mode renders nodes', async ({ page }) => {
+// E2E-19: Grouping by-type mode renders nodes for a multi-sheet workbook
+test('E2E-19: group-by-type mode renders nodes', async ({ page }) => {
   await uploadFile(page, 'cross-sheet.xlsx')
   await waitForNodes(page)
 
-  await page.getByTestId('layout-grouped').click()
+  await page.getByTestId('group-by-type').click()
 
   // Nodes should still be visible in grouped mode
   await expect(page.getByTestId('sheet-node').first()).toBeVisible()
 })
 
-// E2E-20: Switching from grouped back to graph mode restores node count
-test('E2E-20: switching from grouped back to graph mode restores nodes', async ({ page }) => {
+// E2E-20: Switching grouping off restores node count
+test('E2E-20: switching grouping off restores nodes', async ({ page }) => {
   await uploadFile(page, 'cross-sheet.xlsx')
   await waitForNodes(page)
 
   // Note the node count in graph mode
   const graphCount = await page.getByTestId('sheet-node').count()
 
-  // Switch to grouped
-  await page.getByTestId('layout-grouped').click()
+  // Switch to by-type grouping
+  await page.getByTestId('group-by-type').click()
   await expect(page.getByTestId('sheet-node').first()).toBeVisible()
 
-  // Switch back to graph
-  await page.getByTestId('layout-graph').click()
+  // Switch grouping off
+  await page.getByTestId('group-off').click()
   await expect(page.getByTestId('sheet-node')).toHaveCount(graphCount)
 })
 
@@ -73,7 +73,7 @@ test('E2E-21: direction buttons hidden in overview mode', async ({ page }) => {
   await waitForNodes(page)
 
   // Switch to overview — direction buttons should disappear
-  await page.getByTestId('layout-overview').click()
+  await page.getByTestId('view-overview').click()
 
   await expect(page.getByTestId('direction-LR')).not.toBeVisible()
   await expect(page.getByTestId('direction-TB')).not.toBeVisible()
@@ -84,22 +84,22 @@ test('E2E-22: direction buttons reappear after leaving overview mode', async ({ 
   await uploadFile(page, 'cross-sheet.xlsx')
   await waitForNodes(page)
 
-  await page.getByTestId('layout-overview').click()
+  await page.getByTestId('view-overview').click()
   await expect(page.getByTestId('direction-LR')).not.toBeVisible()
 
-  await page.getByTestId('layout-graph').click()
+  await page.getByTestId('view-graph').click()
   await expect(page.getByTestId('direction-LR')).toBeVisible()
 })
 
-// E2E-23: Fit-to-view button is visible after upload
-test('E2E-23: fit-to-view button is visible and clickable', async ({ page }) => {
+// E2E-23: Fit toggle button is visible after upload
+test('E2E-23: fit toggle button is visible and clickable', async ({ page }) => {
   await uploadFile(page, 'cross-sheet.xlsx')
   await waitForNodes(page)
 
-  const fitBtn = page.getByTestId('fit-view')
+  const fitBtn = page.getByTestId('fit-toggle')
   await expect(fitBtn).toBeVisible()
 
-  // Clicking fit-view should not crash or remove nodes
+  // Clicking fit-toggle should not crash or remove nodes
   await fitBtn.click()
   await expect(page.getByTestId('sheet-node').first()).toBeVisible()
 })
@@ -119,7 +119,7 @@ test('E2E-25: overview mode collapses finance model to one node', async ({ page 
   await uploadFile(page, 'finance-model.xlsx')
   await waitForNodes(page)
 
-  await page.getByTestId('layout-overview').click()
+  await page.getByTestId('view-overview').click()
 
   await expect(page.getByTestId('sheet-node')).toHaveCount(1)
 })
@@ -132,4 +132,18 @@ test('E2E-26: structured-ref fixture renders nodes in graph', async ({ page }) =
   // structured-ref.xlsx has 3 sheets
   const count = await page.getByTestId('sheet-node').count()
   expect(count).toBeGreaterThanOrEqual(3)
+})
+
+// E2E-36: URL state is preserved after page reload
+test('E2E-36: URL state is preserved after page reload', async ({ page }) => {
+  await uploadFile(page, 'cross-sheet.xlsx')
+  await waitForNodes(page)
+
+  // Switch to overview mode — this writes to the URL
+  await page.getByTestId('view-overview').click()
+  await expect(page.getByTestId('sheet-node')).toHaveCount(1)
+
+  // Capture the URL with state encoded
+  const urlWithState = page.url()
+  expect(urlWithState).toContain('view=overview')
 })

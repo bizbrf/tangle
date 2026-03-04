@@ -16,7 +16,7 @@ export default defineConfig({
       provider: 'v8',
       reporter: ['text', 'html'],
       reportsDirectory: './coverage',
-      include: ['src/lib/**/*.ts'],
+      include: ['src/lib/**/*.ts', 'src/components/Graph/edge-helpers.ts'],
       exclude: ['src/**/*.d.ts'],
     },
   },

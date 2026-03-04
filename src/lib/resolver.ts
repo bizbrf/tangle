@@ -177,16 +177,72 @@ type ParseResult = { refs: StructuredRef[]; errors: FormulaRefError[] };
 const _parseCache = new Map<string, ParseResult>();
 
 /**
+ * Compute a deterministic signature for the current table schema.
+ *
+ * The signature is based on:
+ *  - Sorted table names
+ *  - For each table, a sorted list of column names if available
+ *
+ * This is intentionally lightweight (string concatenation rather than hashing)
+ * but sufficient to invalidate cache entries when table columns change.
+ */
+function computeTableSchemaSignature(
+  tableMap: Map<string, ExcelTable>,
+  schemaVersion?: string,
+): string {
+  const parts: string[] = [];
+
+  const sortedEntries = [...tableMap.entries()].sort(([nameA], [nameB]) =>
+    nameA.localeCompare(nameB),
+  );
+
+  for (const [tableName, table] of sortedEntries) {
+    const anyTable = table as any;
+    const columnsValue = anyTable && anyTable.columns;
+
+    let columnNames: string[] = [];
+
+    if (Array.isArray(columnsValue)) {
+      columnNames = columnsValue
+        .map((c: unknown) => String(c))
+        .sort((a: string, b: string) => a.localeCompare(b));
+    } else if (columnsValue && typeof columnsValue === 'object') {
+      columnNames = Object.keys(columnsValue).sort((a, b) =>
+        a.localeCompare(b),
+      );
+    }
+
+    parts.push(`${tableName}|${columnNames.join(';')}`);
+  }
+
+  if (schemaVersion) {
+    parts.push(`v:${schemaVersion}`);
+  }
+
+  return parts.join('\x1f');
+}
+
+/**
  * Cached version of `parseStructuredRefs`.
- * Results are memoized by (formula, sorted table keys, sorted query keys).
- * Call `clearParseCache()` after schema changes (table rename, column add/remove).
+ *
+ * Results are memoized by:
+ *  - formula
+ *  - current table schema (table names + columns) and optional schemaVersion
+ *  - sorted query keys
+ *
+ * Call `clearParseCache()` after broad schema changes if you need to ensure
+ * complete invalidation beyond what the schema signature captures.
  */
 export function parseStructuredRefsCached(
   formula: string,
   tableMap: Map<string, ExcelTable>,
   queryMap: Map<string, string> = new Map(),
+  schemaVersion?: string,
 ): ParseResult {
-  const cacheKey = `${formula}\x00${[...tableMap.keys()].sort().join(',')}\x00${[...queryMap.keys()].sort().join(',')}`;
+  const schemaSignature = computeTableSchemaSignature(tableMap, schemaVersion);
+  const cacheKey = `${formula}\x00${schemaSignature}\x00${[...queryMap.keys()]
+    .sort()
+    .join(',')}`;
   if (_parseCache.has(cacheKey)) return _parseCache.get(cacheKey)!;
   const result = parseStructuredRefs(formula, tableMap, queryMap);
   _parseCache.set(cacheKey, result);

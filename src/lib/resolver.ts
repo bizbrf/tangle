@@ -233,51 +233,74 @@ export function detectCycles(graph: DepGraph): string[][] {
     if (!adjacency.has(edge.to)) adjacency.set(edge.to, []);
   }
 
-  const visited = new Set<string>();
+  // 3-color DFS state: 0 = unvisited, 1 = visiting, 2 = done
+  const state = new Map<string, 0 | 1 | 2>();
   const cycles: string[][] = [];
   const cycleSigs = new Set<string>(); // deduplicate cycles
 
+  // Shared path for the current DFS stack and a set for quick membership testing
+  const path: string[] = [];
+  const pathSet = new Set<string>();
+
+  type Frame = { node: string; index: number };
+
   // Iterative DFS with an explicit stack to avoid call-stack overflow on large graphs
   for (const startNode of adjacency.keys()) {
-    if (visited.has(startNode)) continue;
+    if (state.get(startNode) === 2) continue; // already fully explored
 
-    // Stack entries: [currentNode, pathSoFar, pathSet]
-    const stack: Array<[string, string[], Set<string>]> = [
-      [startNode, [], new Set()],
-    ];
+    const stack: Frame[] = [{ node: startNode, index: 0 }];
 
     while (stack.length > 0) {
-      const [node, path, pathSet] = stack.pop()!;
+      const frame = stack[stack.length - 1];
+      const node = frame.node;
+      const nodeState = state.get(node) ?? 0;
 
-      if (pathSet.has(node)) {
-        // Back-edge → cycle found
-        const cycleStart = path.indexOf(node);
-        const cycle = path.slice(cycleStart);
-        const sig = [...cycle].sort().join('\x00');
-        if (!cycleSigs.has(sig)) {
-          cycleSigs.add(sig);
-          cycles.push(cycle);
+      if (nodeState === 2) {
+        // Node was fully explored via another path; pop and continue
+        stack.pop();
+        continue;
+      }
+
+      if (nodeState === 0) {
+        // First time we see this node on this DFS: mark as visiting and add to path
+        state.set(node, 1);
+        path.push(node);
+        pathSet.add(node);
+      }
+
+      const neighbors = adjacency.get(node) ?? [];
+
+      if (frame.index >= neighbors.length) {
+        // All neighbors processed: mark node as done and unwind path
+        state.set(node, 2);
+        path.pop();
+        pathSet.delete(node);
+        stack.pop();
+        continue;
+      }
+
+      const neighbor = neighbors[frame.index++];
+      const neighborState = state.get(neighbor) ?? 0;
+
+      if (neighborState === 1) {
+        // Back-edge → cycle found (neighbor is on current DFS path)
+        const cycleStart = path.indexOf(neighbor);
+        if (cycleStart !== -1) {
+          const cycle = path.slice(cycleStart);
+          const sig = [...cycle].sort().join('\x00');
+          if (!cycleSigs.has(sig)) {
+            cycleSigs.add(sig);
+            cycles.push(cycle);
+          }
         }
         continue;
       }
 
-      if (visited.has(node)) continue;
-      // Mark fully explored only after all DFS paths through this node are done.
-      // For cycle detection we only need to track within-path visits.
-
-      const newPath = [...path, node];
-      const newPathSet = new Set(pathSet);
-      newPathSet.add(node);
-
-      const neighbors = adjacency.get(node) ?? [];
-      if (neighbors.length === 0) {
-        // Leaf — mark visited so we skip in future traversals
-        visited.add(node);
-      } else {
-        for (const neighbor of neighbors) {
-          stack.push([neighbor, newPath, newPathSet]);
-        }
+      if (neighborState === 0) {
+        // Unvisited neighbor: start exploring it
+        stack.push({ node: neighbor, index: 0 });
       }
+      // If neighborState === 2, it's already fully explored; skip it.
     }
   }
 

@@ -26,7 +26,31 @@ export async function waitForNodes(page: Page): Promise<void> {
   await page.getByTestId('sheet-node').first().waitFor({ state: 'visible' })
 }
 
-/** Wait for the detail panel to appear (it is conditionally rendered — null when nothing selected) */
-export async function waitForDetailPanel(page: Page): Promise<void> {
-  await page.getByTestId('detail-panel').waitFor({ state: 'visible' })
+/**
+ * Wait for the detail panel to appear.
+ * When `clickTarget` is provided the helper retries the click up to 3 times
+ * (with a short per-attempt timeout) so that slower browsers like Firefox
+ * don't time-out when the initial click doesn't register.
+ */
+export async function waitForDetailPanel(
+  page: Page,
+  clickTarget?: import('@playwright/test').Locator,
+): Promise<void> {
+  const panel = page.getByTestId('detail-panel')
+
+  if (!clickTarget) {
+    await panel.waitFor({ state: 'visible' })
+    return
+  }
+
+  const maxRetries = 3
+  for (let i = 0; i < maxRetries; i++) {
+    await clickTarget.click({ force: true })
+    try {
+      await panel.waitFor({ state: 'visible', timeout: 5000 })
+      return
+    } catch {
+      if (i === maxRetries - 1) throw new Error('Detail panel did not appear after retrying node click')
+    }
+  }
 }

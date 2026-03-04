@@ -10,11 +10,10 @@ test('E2E-10: clicking sheet node opens detail panel', async ({ page }) => {
   await uploadFile(page, 'cross-sheet.xlsx')
   await waitForNodes(page)
 
-  // Click the first sheet node (force: true bypasses RF canvas overlay)
-  await page.getByTestId('sheet-node').first().click({ force: true })
+  const firstNode = page.getByTestId('sheet-node').first()
 
-  // Detail panel should appear
-  await waitForDetailPanel(page)
+  // Detail panel should appear (retries click on slower browsers)
+  await waitForDetailPanel(page, firstNode)
   await expect(page.getByTestId('detail-panel')).toBeVisible()
 
   // Panel title should show 'Sheet' (not 'References' or a multi-select count)
@@ -26,8 +25,8 @@ test('E2E-11: detail panel shows workload metrics', async ({ page }) => {
   await uploadFile(page, 'cross-sheet.xlsx')
   await waitForNodes(page)
 
-  await page.getByTestId('sheet-node').first().click({ force: true })
-  await waitForDetailPanel(page)
+  const firstNode = page.getByTestId('sheet-node').first()
+  await waitForDetailPanel(page, firstNode)
 
   // Workload metrics grid should be visible (only shows for nodes with workload data)
   // cross-sheet.xlsx has formulas, so workload is non-null

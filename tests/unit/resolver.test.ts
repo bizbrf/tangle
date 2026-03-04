@@ -399,17 +399,16 @@ describe('renameReference — column rename', () => {
 // ── topoSort ──────────────────────────────────────────────────────────────────
 
 describe('topoSort', () => {
-  it('returns nodes in leaf-first (data-source-first) order for a linear chain', () => {
-    // A → B → C: evaluation order should be C, B, A (sources before consumers)
+  it('returns nodes in standard topological (source-first) order for a linear chain', () => {
+    // A → B → C: topological order should be A, B, C (sources before consumers)
     const graph = {
       nodes: ['A', 'B', 'C'],
       edges: [{ from: 'A', to: 'B' }, { from: 'B', to: 'C' }],
     }
     const { order, cycleNodes } = topoSort(graph)
     expect(cycleNodes.size).toBe(0)
-    // C has no outgoing edges (in-degree 0 initially after reversing logic)
-    // In Kahn's: A has no INCOMING edges, so A comes first in topological order
-    // Order: A, B, C (standard topological order — consumer after its dependencies)
+    // In Kahn's algorithm: A has no INCOMING edges, so A comes first in topological order
+    // Order: A, B, C (standard topological order — consumers after their dependencies)
     expect(order.indexOf('A')).toBeLessThan(order.indexOf('B'))
     expect(order.indexOf('B')).toBeLessThan(order.indexOf('C'))
   })

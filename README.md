@@ -169,6 +169,10 @@ Tangle processes all Excel data locally — nothing is uploaded to a server. See
 **[SECURITY.md](SECURITY.md)** for a full data security review including data
 flow diagrams, dependency audit, and Tauri permission analysis.
 
+## Contributing
+
+See **[CONTRIBUTING.md](CONTRIBUTING.md)** for setup instructions, code style guidelines, branch and commit conventions, and how to submit a pull request. The **[docs/architecture.md](docs/architecture.md)** document explains the parsing pipeline, graph construction, and React layer in detail.
+
 ## License
 
 MIT

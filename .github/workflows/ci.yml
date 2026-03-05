@@ -23,14 +23,14 @@ jobs:
 
       - run: npm ci
 
-      - name: Unit Tests
-        run: npm test
+      - name: Lint
+        run: npm run lint
 
       - name: Type check
         run: npx tsc -b --noEmit
 
-      - name: Lint
-        run: npm run lint
+      - name: Unit Tests
+        run: npm test
 
       - name: Build
         run: npm run build

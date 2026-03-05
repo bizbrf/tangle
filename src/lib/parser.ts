@@ -1,5 +1,6 @@
 import * as XLSX from 'xlsx';
 import type { WorkbookFile, ParsedSheet, SheetReference, SheetWorkload, NamedRange, ExcelTable } from '../types';
+import { ParseError } from '../types';
 import { sanitizeFilename } from './filenameSanitizer';
 
 // ── Supported Excel file types ───────────────────────────────────────────────
@@ -371,7 +372,18 @@ export function parseWorkbook(file: File, fileId: string): Promise<WorkbookFile>
       try {
         const data = e.target?.result;
         // Use ArrayBuffer + bookFiles to access raw zip entries for external link resolution
-        const wb = XLSX.read(data, { type: 'array', cellFormula: true, bookFiles: true });
+        let wb: XLSX.WorkBook;
+        try {
+          wb = XLSX.read(data, { type: 'array', cellFormula: true, bookFiles: true });
+        } catch (err) {
+          reject(new ParseError({
+            kind: 'MALFORMED_WORKBOOK',
+            message: `Could not decode workbook "${file.name}". The file may be corrupt or in an unsupported format.`,
+            workbook: file.name,
+            cause: err,
+          }));
+          return;
+        }
         const linkMap = buildExternalLinkMap(wb);
         const namedRanges = extractNamedRanges(wb);
         // Build lookup map: lowercase name → NamedRange
@@ -393,10 +405,19 @@ export function parseWorkbook(file: File, fileId: string): Promise<WorkbookFile>
         const storageName = sanitizeFilename(originalName);
         resolve({ id: fileId, name: originalName, storageName, originalName, sheets, namedRanges, tables });
       } catch (err) {
-        reject(err);
+        reject(new ParseError({
+          kind: 'FORMULA_PARSE_ERROR',
+          message: `An error occurred while parsing "${file.name}".`,
+          workbook: file.name,
+          cause: err,
+        }));
       }
     };
-    reader.onerror = () => reject(new Error(`Failed to read ${file.name}`));
+    reader.onerror = () => reject(new ParseError({
+      kind: 'FILE_READ_ERROR',
+      message: `Failed to read "${file.name}". The file could not be accessed.`,
+      workbook: file.name,
+    }));
     reader.readAsArrayBuffer(file);
   });
 }

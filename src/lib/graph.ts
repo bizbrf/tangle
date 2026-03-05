@@ -2,6 +2,7 @@ import Dagre from '@dagrejs/dagre';
 import { MarkerType, type Node, type Edge } from '@xyflow/react';
 import type { WorkbookFile, EdgeReference, SheetWorkload } from '../types';
 import { EXCEL_EXT_RE } from './parser';
+import { normalizeWorkbookName, makeSheetId, makeFileId, makeEdgeId } from './identity';
 
 /** Strip any known Excel extension from a filename */
 export function stripExcelExt(name: string): string {
@@ -43,17 +44,8 @@ export type GroupingMode = 'off' | 'by-type' | 'by-table';
 const NODE_W = 190;
 const NODE_H = 88;
 
-// Normalize a workbook name for fuzzy matching:
-// - Extract filename from bracket notation: "[FileB.xlsx]" → "FileB.xlsx"
-// - Strip .xlsx extension
-// - Lowercase for case-insensitive comparison
-function normWb(name: string): string {
-  let n = name;
-  // Extract from bracket notation if present
-  const bracketMatch = n.match(/\[([^\]]+)\]/);
-  if (bracketMatch) n = bracketMatch[1];
-  return stripExcelExt(n.toLowerCase());
-}
+// normWb is an alias for the canonical normalizeWorkbookName from identity.ts.
+const normWb = normalizeWorkbookName;
 
 export function buildGraph(
   workbooks: WorkbookFile[],
@@ -725,15 +717,15 @@ export function computeClusterNodes(nodes: Node<NodeData>[]): Node<ClusterData>[
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function sheetNodeId(workbook: string, sheet: string): string {
-  return `${workbook}::${sheet}`;
+  return makeSheetId(workbook, sheet);
 }
 
 function fileNodeId(workbook: string): string {
-  return `[file]${workbook}`;
+  return makeFileId(workbook);
 }
 
 function edgeId(source: string, target: string): string {
-  return `${source}->${target}`;
+  return makeEdgeId(source, target);
 }
 
 function makeSheetNode(id: string, workbookName: string, sheetName: string, workload: SheetWorkload | null): Node<NodeData> {

@@ -43,6 +43,57 @@ export interface FormulaRefError {
   ref?: string;       // the specific reference token that failed
 }
 
+// ── Workbook parse error taxonomy ─────────────────────────────────────────────
+
+/**
+ * Discriminated kind for workbook-level parse failures.
+ *
+ * | Kind                        | Meaning                                           |
+ * |-----------------------------|---------------------------------------------------|
+ * | UNSUPPORTED_FILE            | File extension / format is not supported          |
+ * | MALFORMED_WORKBOOK          | SheetJS could not decode the file (corrupt/empty) |
+ * | FORMULA_PARSE_ERROR         | Formula text could not be scanned for references  |
+ * | EXTERNAL_LINK_RESOLVE_ERROR | External-link index entry could not be resolved   |
+ * | FILE_READ_ERROR             | FileReader failed to read the raw bytes           |
+ */
+export type ParseErrorKind =
+  | 'UNSUPPORTED_FILE'
+  | 'MALFORMED_WORKBOOK'
+  | 'FORMULA_PARSE_ERROR'
+  | 'EXTERNAL_LINK_RESOLVE_ERROR'
+  | 'FILE_READ_ERROR';
+
+/**
+ * Structured error thrown by `parseWorkbook`.
+ *
+ * Extends the built-in `Error` so it can be caught generically while still
+ * carrying typed metadata for diagnostics and user-facing messages.
+ */
+export class ParseError extends Error {
+  readonly kind: ParseErrorKind;
+  /** Name of the workbook file being parsed when the error occurred. */
+  readonly workbook: string;
+  /** Sheet name, if the error is scoped to a particular sheet. */
+  readonly sheet?: string;
+  /** The raw underlying error, if available. */
+  readonly cause?: unknown;
+
+  constructor(opts: {
+    kind: ParseErrorKind;
+    message: string;
+    workbook: string;
+    sheet?: string;
+    cause?: unknown;
+  }) {
+    super(opts.message);
+    this.name = 'ParseError';
+    this.kind = opts.kind;
+    this.workbook = opts.workbook;
+    this.sheet = opts.sheet;
+    this.cause = opts.cause;
+  }
+}
+
 // ── Structured reference types ────────────────────────────────────────────────
 
 /** Kind of structured reference found in a formula */

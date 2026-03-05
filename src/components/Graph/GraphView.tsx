@@ -31,28 +31,8 @@ import { Toolbar, type ViewMode } from './Toolbar';
 import { EdgeKindFilterBar, type EdgeKindFilterState } from './EdgeKindFilterBar';
 import { Legend } from './Legend';
 import { EmptyState } from './EmptyState';
-
-// ── URL state helpers ─────────────────────────────────────────────────────────
-
-function readUrlParams(): { viewMode: ViewMode; dir: LayoutDirection; grouping: GroupingMode; fit: boolean } {
-  const p = new URLSearchParams(window.location.search);
-  const viewMode = (p.get('view') === 'overview' ? 'overview' : 'graph') as ViewMode;
-  const dir = (p.get('dir') === 'TB' ? 'TB' : 'LR') as LayoutDirection;
-  const rawGroup = p.get('group') ?? 'off';
-  const grouping = (['off', 'by-type', 'by-table'].includes(rawGroup) ? rawGroup : 'off') as GroupingMode;
-  const fit = p.get('fit') !== 'false';
-  return { viewMode, dir, grouping, fit };
-}
-
-function writeUrlParams(viewMode: ViewMode, dir: LayoutDirection, grouping: GroupingMode, fit: boolean) {
-  const p = new URLSearchParams(window.location.search);
-  p.set('view', viewMode);
-  p.set('dir', dir);
-  p.set('group', grouping);
-  p.set('fit', String(fit));
-  const newUrl = `${window.location.pathname}?${p.toString()}${window.location.hash}`;
-  window.history.replaceState(null, '', newUrl);
-}
+import { useUrlGraphState } from './hooks/useUrlGraphState';
+import { useFocusNeighborhood, type FocusDirection } from './hooks/useFocusNeighborhood';
 
 // ── Node & edge type registries ──────────────────────────────────────────────
 
@@ -77,32 +57,12 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
   const [selectedNodeIds, setSelectedNodeIds] = useState<Set<string>>(new Set());
 
   // ── Persistent control state (synced to URL) ────────────────────────────────
-  const initialParams = useMemo(() => readUrlParams(), []);
-  const [viewMode, setViewModeRaw] = useState<ViewMode>(initialParams.viewMode);
-  const [layoutDirection, setLayoutDirectionRaw] = useState<LayoutDirection>(initialParams.dir);
-  const [groupingMode, setGroupingModeRaw] = useState<GroupingMode>(initialParams.grouping);
-  const [fitEnabled, setFitEnabledRaw] = useState<boolean>(initialParams.fit);
-
-  // Wrap setters to also persist to URL
-  const setViewMode = useCallback((m: ViewMode) => {
-    setViewModeRaw(m);
-    writeUrlParams(m, layoutDirection, groupingMode, fitEnabled);
-  }, [layoutDirection, groupingMode, fitEnabled]);
-  const setLayoutDirection = useCallback((d: LayoutDirection) => {
-    setLayoutDirectionRaw(d);
-    writeUrlParams(viewMode, d, groupingMode, fitEnabled);
-  }, [viewMode, groupingMode, fitEnabled]);
-  const setGroupingMode = useCallback((g: GroupingMode) => {
-    setGroupingModeRaw(g);
-    writeUrlParams(viewMode, layoutDirection, g, fitEnabled);
-  }, [viewMode, layoutDirection, fitEnabled]);
-  const toggleFit = useCallback(() => {
-    setFitEnabledRaw((f) => {
-      const next = !f;
-      writeUrlParams(viewMode, layoutDirection, groupingMode, next);
-      return next;
-    });
-  }, [viewMode, layoutDirection, groupingMode]);
+  const {
+    viewMode, setViewMode,
+    layoutDirection, setLayoutDirection,
+    groupingMode, setGroupingMode,
+    fitEnabled, toggleFit,
+  } = useUrlGraphState();
 
   // ── Derived layout mode for buildGraph ─────────────────────────────────────
   const layoutMode: LayoutMode = viewMode === 'overview' ? 'overview' : 'graph';
@@ -114,7 +74,7 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
   const [showTables, setShowTables] = useState(false);
   const [focusNodeId, setFocusNodeId] = useState<string | null>(null);
   const [focusDepth, setFocusDepth] = useState(1);
-  const [focusDirection, setFocusDirection] = useState<'both' | 'upstream' | 'downstream'>('both');
+  const [focusDirection, setFocusDirection] = useState<FocusDirection>('both');
   const { fitView } = useReactFlow();
   const highlightTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   // Ref tracking nodes the user has manually dragged — read by handleReorganize to
@@ -190,33 +150,28 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
 
       switch (e.key) {
         case 'g': case 'G':
-          setViewModeRaw(nextView);
-          writeUrlParams(nextView, layoutDirection, groupingMode, fitEnabled);
+          setViewMode(nextView);
           break;
         case 'l': case 'L':
-          setLayoutDirectionRaw(nextDir);
-          writeUrlParams(viewMode, nextDir, groupingMode, fitEnabled);
+          setLayoutDirection(nextDir);
           break;
         case 'f': case 'F':
           toggleFit();
           break;
         case '1':
-          setGroupingModeRaw('off');
-          writeUrlParams(viewMode, layoutDirection, 'off', fitEnabled);
+          setGroupingMode('off');
           break;
         case '2':
-          setGroupingModeRaw('by-type');
-          writeUrlParams(viewMode, layoutDirection, 'by-type', fitEnabled);
+          setGroupingMode('by-type');
           break;
         case '3':
-          setGroupingModeRaw('by-table');
-          writeUrlParams(viewMode, layoutDirection, 'by-table', fitEnabled);
+          setGroupingMode('by-table');
           break;
       }
     }
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [viewMode, layoutDirection, groupingMode, fitEnabled, toggleFit]);
+  }, [viewMode, layoutDirection, setViewMode, setLayoutDirection, setGroupingMode, toggleFit]);
 
   const onConnect = useCallback(
     (connection: Connection) => setEdges((eds) => addEdge(connection, eds)),
@@ -266,29 +221,7 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
   }, []);
 
   // Focus mode: directional BFS to find N-hop neighbors
-  const focusNeighborIds = useMemo(() => {
-    if (!focusNodeId) return null;
-    const neighbors = new Set<string>([focusNodeId]);
-    let frontier = [focusNodeId];
-    const dir = focusDirection;
-    for (let hop = 0; hop < focusDepth; hop++) {
-      const next: string[] = [];
-      for (const nid of frontier) {
-        for (const edge of edges) {
-          if ((dir === 'both' || dir === 'downstream') && edge.source === nid && !neighbors.has(edge.target)) {
-            neighbors.add(edge.target);
-            next.push(edge.target);
-          }
-          if ((dir === 'both' || dir === 'upstream') && edge.target === nid && !neighbors.has(edge.source)) {
-            neighbors.add(edge.source);
-            next.push(edge.source);
-          }
-        }
-      }
-      frontier = next;
-    }
-    return neighbors;
-  }, [focusNodeId, focusDepth, focusDirection, edges]);
+  const focusNeighborIds = useFocusNeighborhood(focusNodeId, focusDepth, focusDirection, edges);
 
   // Apply edge filter + styles
   const styledEdges = useMemo(() => {

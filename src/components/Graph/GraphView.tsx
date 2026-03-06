@@ -126,6 +126,30 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
   const hasNamedRanges = useMemo(() => workbooks.some((wb) => wb.namedRanges.length > 0), [workbooks]);
   const hasTables = useMemo(() => workbooks.some((wb) => wb.tables.length > 0), [workbooks]);
 
+  const clearSelection = useCallback(() => {
+    setSelectedNodes([]);
+    setSelectedEdge(null);
+    setSelectedNodeIds(new Set());
+    setNodes((currentNodes) => {
+      let changed = false;
+      const nextNodes = currentNodes.map((node) => {
+        if (!node.selected) return node;
+        changed = true;
+        return { ...node, selected: false };
+      });
+      return changed ? nextNodes : currentNodes;
+    });
+    setEdges((currentEdges) => {
+      let changed = false;
+      const nextEdges = currentEdges.map((edge) => {
+        if (!edge.selected) return edge;
+        changed = true;
+        return { ...edge, selected: false };
+      });
+      return changed ? nextEdges : currentEdges;
+    });
+  }, [setEdges, setNodes]);
+
   useEffect(() => {
     const { nodes: n, edges: e } = buildGraph(
       workbooks, layoutMode, hiddenFiles, showNamedRanges, showTables, layoutDirection,
@@ -388,16 +412,14 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
   );
 
   function onPaneClick() {
-    setSelectedNodes([]);
-    setSelectedEdge(null);
-    setSelectedNodeIds(new Set());
+    clearSelection();
     setFocusNodeId(null);
   }
 
   if (workbooks.length === 0) return <EmptyState />;
 
   return (
-    <div style={{ flex: 1, position: 'relative' }}>
+    <div style={{ flex: 1, position: 'relative', width: '100%', height: '100%', minWidth: 0, minHeight: 0 }}>
       <ReactFlow
         nodes={styledNodes}
         edges={styledEdges}
@@ -414,7 +436,7 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
         fitViewOptions={{ padding: 0.25 }}
         minZoom={0.15}
         maxZoom={2.5}
-        style={{ background: C.bg }}
+        style={{ width: '100%', height: '100%', background: C.bg }}
         defaultEdgeOptions={{
           type: 'smoothstep',
           style: { stroke: C.border, strokeWidth: 1.5 },
@@ -573,11 +595,7 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
       <DetailPanel
         selectedNodes={selectedNodes}
         selectedEdge={selectedEdge}
-        onClose={() => {
-          setSelectedNodes([]);
-          setSelectedEdge(null);
-          setSelectedNodeIds(new Set());
-        }}
+        onClose={clearSelection}
         onFocus={setFocusNodeId}
         focusNodeId={focusNodeId}
         onToggleHidden={onToggleHidden}

@@ -41,10 +41,10 @@ export default function App() {
   }, []);
 
   return (
-    <div className="flex h-full" style={{ background: '#0b0d11' }}>
+    <div className="flex h-screen overflow-hidden" style={{ background: '#0b0d11' }}>
       {/* Sidebar */}
       <div
-        className="w-72 shrink-0 flex flex-col h-full"
+        className="w-72 shrink-0 flex h-full min-h-0 flex-col"
         style={{ background: '#0d1017', borderRight: '1px solid #1e2535' }}
       >
         {/* Header */}

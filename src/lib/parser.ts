@@ -1,5 +1,5 @@
 import * as XLSX from 'xlsx';
-import type { WorkbookFile, ParsedSheet, SheetReference, SheetWorkload, NamedRange, ExcelTable } from '../types';
+import type { WorkbookFile, ParsedSheet, SheetReference, SheetWorkload, NamedRange, ExcelTable, StructuredRef, StructuredRefKind } from '../types';
 import { sanitizeFilename } from './filenameSanitizer';
 
 // ── Supported Excel file types ───────────────────────────────────────────────
@@ -13,6 +13,24 @@ const UNQUOTED_SHEET = '[A-Za-z0-9_\\u00C0-\\u024F][\\w. ]*';
 // Full reference regex with cell capture
 const REF_WITH_CELL_RE = new RegExp(
   `(?:'(?:\\[([^\\]]+)\\])?([^']+)'|(?:\\[([^\\]]+)\\])?(${UNQUOTED_SHEET}))!(${CELL_RE})`,
+  'g',
+);
+
+// 3D reference: Sheet1:Sheet3!A1 or 'Sheet 1':'Sheet 3'!A1:B2
+// Captures: [1] startSheet quoted, [2] endSheet quoted, [3] startSheet unquoted,
+//           [4] endSheet unquoted, [5] cell range
+const REF_3D_RE = new RegExp(
+  `(?:'([^']+)':'([^']+)'|(${UNQUOTED_SHEET}):(${UNQUOTED_SHEET}))!(${CELL_RE})`,
+  'g',
+);
+
+// Enhanced structured table reference: Table1[[#Specifier],[Column]] or Table1[[#Specifier]]
+// Captures: [1] table name, [2] inner bracket content (e.g. "#Headers],[Col" or "#All")
+const STRUCTURED_REF_RE = /\b([A-Za-z_\u00C0-\u024F][A-Za-z0-9_\u00C0-\u024F]*)\[\[([^\]]*(?:\],[^\]]*)*)\]\]/g;
+
+// Spill reference suffix: detects # after cell references (A1#, Sheet1!B2#)
+const SPILL_SUFFIX_RE = new RegExp(
+  `(?:(?:'(?:\\[([^\\]]+)\\])?([^']+)'|(?:\\[([^\\]]+)\\])?(${UNQUOTED_SHEET}))!)?(${CELL_RE})#`,
   'g',
 );
 
@@ -344,6 +362,162 @@ export function extractReferences(
             formula,
             sourceCell: cellAddr,
             tableName: table.name,
+          });
+        }
+      }
+    }
+
+    // Sixth pass: detect 3D references (Sheet1:Sheet3!A1)
+    {
+      REF_3D_RE.lastIndex = 0;
+      let m3d: RegExpExecArray | null;
+      while ((m3d = REF_3D_RE.exec(formula)) !== null) {
+        const [, startQuoted, endQuoted, startUnquoted, endUnquoted, cellRange] = m3d;
+        const startSheet = startQuoted ?? startUnquoted;
+        const endSheet = endQuoted ?? endUnquoted;
+        if (!startSheet || !endSheet) continue;
+
+        const tgtSheet = startSheet.toLowerCase();
+        // Skip self-sheet 3D refs where both ends are the same sheet as source
+        if (tgtSheet === selfSheet && endSheet.toLowerCase() === selfSheet) {
+          workload.withinSheetRefs++;
+          continue;
+        }
+
+        const key = `3D|${startSheet}|${endSheet}`;
+        if (!byTarget.has(key)) {
+          byTarget.set(key, {
+            targetWorkbook: null,
+            targetSheet: startSheet,
+            cells: [cellRange],
+            formula,
+            sourceCell: cellAddr,
+            is3DRef: true,
+            sheetRangeEnd: endSheet,
+          });
+        } else {
+          byTarget.get(key)!.cells.push(cellRange);
+        }
+      }
+    }
+
+    // Seventh pass: detect spill references (A1#, Sheet1!B2#)
+    {
+      SPILL_SUFFIX_RE.lastIndex = 0;
+      let sMatch: RegExpExecArray | null;
+      while ((sMatch = SPILL_SUFFIX_RE.exec(formula)) !== null) {
+        const [, wbQuotedS, sheetQuotedS, wbUnquotedS, sheetUnquotedS, cellRangeS] = sMatch;
+        let targetWorkbookS = wbQuotedS ?? wbUnquotedS ?? null;
+        const targetSheetS = sheetQuotedS ?? sheetUnquotedS ?? null;
+
+        // Resolve numeric external link indices
+        if (targetWorkbookS && linkMap.has(targetWorkbookS)) {
+          targetWorkbookS = linkMap.get(targetWorkbookS)!;
+        }
+
+        if (targetSheetS) {
+          const tgtSheet = targetSheetS.toLowerCase();
+          // Skip self-sheet spill refs
+          if (!targetWorkbookS && tgtSheet === selfSheet) {
+            workload.withinSheetRefs++;
+            continue;
+          }
+          if (targetWorkbookS) {
+            const tgtWb = targetWorkbookS.toLowerCase().replace(EXCEL_EXT_RE, '');
+            if (tgtWb === selfWb && tgtSheet === selfSheet) {
+              workload.withinSheetRefs++;
+              continue;
+            }
+          }
+
+          const key = `SPILL|${targetWorkbookS ?? ''}|${targetSheetS}`;
+          if (!byTarget.has(key)) {
+            byTarget.set(key, {
+              targetWorkbook: targetWorkbookS,
+              targetSheet: targetSheetS,
+              cells: [`${cellRangeS}#`],
+              formula,
+              sourceCell: cellAddr,
+              isSpill: true,
+            });
+          } else {
+            byTarget.get(key)!.cells.push(`${cellRangeS}#`);
+          }
+        } else {
+          // No sheet prefix — local spill ref (within-sheet). Mark existing refs if found,
+          // otherwise just note it as within-sheet.
+          // Check if this cell ref was already captured by the first pass with a sheet prefix
+          let found = false;
+          for (const ref of byTarget.values()) {
+            if (ref.cells.includes(cellRangeS)) {
+              ref.isSpill = true;
+              // Replace the cell entry with the spill variant
+              const idx = ref.cells.indexOf(cellRangeS);
+              if (idx !== -1) ref.cells[idx] = `${cellRangeS}#`;
+              found = true;
+              break;
+            }
+          }
+          if (!found) {
+            // Bare spill ref without sheet prefix — within-sheet
+            workload.withinSheetRefs++;
+          }
+        }
+      }
+    }
+
+    // Eighth pass: detect enhanced structured table references (Table1[[#Headers],[Col]])
+    if (tableMap.size > 0) {
+      STRUCTURED_REF_RE.lastIndex = 0;
+      let srMatch: RegExpExecArray | null;
+      while ((srMatch = STRUCTURED_REF_RE.exec(formula)) !== null) {
+        const [rawRef, tableName, innerContent] = srMatch;
+        const table = tableMap.get(tableName.toLowerCase());
+        if (!table) continue;
+
+        // Parse the inner content: could be "#Headers],[Col" or "#All" etc.
+        // Strip inner brackets from each part: "[#Headers]" → "#Headers", "[Name]" → "Name"
+        const parts = innerContent.split(',').map(p => p.trim().replace(/^\[|\]$/g, ''));
+        let specifier: string | undefined;
+        let columnName: string | undefined;
+        let kind: StructuredRefKind = 'table-column';
+
+        for (const part of parts) {
+          if (part.startsWith('#')) {
+            specifier = part;
+            const specLower = part.toLowerCase();
+            if (specLower === '#headers') kind = 'headers';
+            else if (specLower === '#all') kind = 'all';
+            else if (specLower === '#totals') kind = 'totals';
+            else if (specLower === '#this row') kind = 'this-row';
+            else if (specLower === '#data') kind = 'data';
+          } else if (part.length > 0) {
+            columnName = part;
+          }
+        }
+
+        const structuredRef: StructuredRef = {
+          kind,
+          tableName: table.name,
+          ...(columnName ? { columnName } : {}),
+          ...(specifier ? { specifier } : {}),
+          rawRef,
+        };
+
+        if (table.targetSheet.toLowerCase() === selfSheet) {
+          workload.withinSheetRefs++;
+          continue;
+        }
+        const key = `SREF|${table.name}|${table.targetSheet}|${kind}`;
+        if (!byTarget.has(key)) {
+          byTarget.set(key, {
+            targetWorkbook: null,
+            targetSheet: table.targetSheet,
+            cells: [table.cells],
+            formula,
+            sourceCell: cellAddr,
+            tableName: table.name,
+            structuredRef,
           });
         }
       }

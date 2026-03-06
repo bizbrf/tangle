@@ -6,6 +6,10 @@ export interface SheetReference {
   sourceCell: string;
   namedRangeName?: string; // set when this ref was detected via a named range
   tableName?: string;      // set when this ref was detected via an Excel table
+  is3DRef?: boolean;       // true when ref spans multiple sheets (e.g. Sheet1:Sheet3!A1)
+  sheetRangeEnd?: string;  // end sheet name for 3D refs
+  isSpill?: boolean;       // true when ref uses spill operator (#)
+  structuredRef?: StructuredRef; // parsed structured table reference details
 }
 
 export interface NamedRange {
@@ -46,19 +50,25 @@ export interface FormulaRefError {
 // ── Structured reference types ────────────────────────────────────────────────
 
 /** Kind of structured reference found in a formula */
-export type StructuredRefKind = 'table-column' | 'relative' | 'query-result';
+export type StructuredRefKind = 'table-column' | 'relative' | 'query-result' | 'headers' | 'all' | 'totals' | 'this-row' | 'data';
 
 /**
  * A parsed structured reference extracted from an Excel formula.
  * Examples:
- *   - TableName[ColumnName]  → kind: 'table-column'
- *   - QueryName.Result[Col]  → kind: 'query-result'
- *   - [@ColumnName]          → kind: 'relative'
+ *   - TableName[ColumnName]        → kind: 'table-column'
+ *   - QueryName.Result[Col]        → kind: 'query-result'
+ *   - [@ColumnName]                → kind: 'relative'
+ *   - TableName[[#Headers],[Col]]  → kind: 'headers'
+ *   - TableName[[#All]]            → kind: 'all'
+ *   - TableName[[#Totals]]         → kind: 'totals'
+ *   - TableName[[#This Row],[Col]] → kind: 'this-row'
+ *   - TableName[[#Data]]           → kind: 'data'
  */
 export interface StructuredRef {
   kind: StructuredRefKind;
   tableName: string;    // table or query name (empty string for relative refs)
   columnName?: string;  // column name if specified
+  specifier?: string;   // e.g. '#Headers', '#All', '#Totals', '#This Row', '#Data'
   rawRef: string;       // the exact text matched in the formula
 }
 

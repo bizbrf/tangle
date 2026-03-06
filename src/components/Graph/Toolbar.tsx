@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import type { LayoutDirection } from '../../lib/graph';
 import type { GroupingMode } from '../../lib/graph';
 import { C } from './constants';
+import { toolbarButtonBaseStyle, toolbarDividerStyle, toolbarGroupStyle, toolbarRowStyle } from './toolbarStyles';
 
 export type ViewMode = 'graph' | 'overview';
 
@@ -22,12 +23,12 @@ const GROUPING_OPTIONS: { mode: GroupingMode; label: string }[] = [
 ];
 
 function ToolbarDivider() {
-  return <div aria-hidden="true" style={{ width: 1, alignSelf: 'stretch', background: C.border, margin: '4px 2px' }} />;
+  return <div aria-hidden="true" style={toolbarDividerStyle} />;
 }
 
 function ToolbarGroup({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div role="group" aria-label={label} style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+    <div role="group" aria-label={label} style={toolbarGroupStyle}>
       {children}
     </div>
   );
@@ -50,9 +51,7 @@ function ToolbarBtn({
       title={title}
       aria-pressed={active}
       style={{
-        display: 'flex', alignItems: 'center', gap: 4,
-        padding: '5px 10px', borderRadius: 7, border: 'none', cursor: 'pointer',
-        fontSize: 11, fontWeight: 600, letterSpacing: '0.01em',
+        ...toolbarButtonBaseStyle,
         background: active
           ? (accentStyle ? C.accentDim : C.accent)
           : 'transparent',
@@ -60,7 +59,6 @@ function ToolbarBtn({
           ? (accentStyle ? C.accent : '#fff')
           : C.textSecondary,
         boxShadow: active ? `0 0 10px ${C.accentGlow}` : 'none',
-        transition: 'all 0.15s',
       }}
       onMouseEnter={(e) => { if (!active) (e.currentTarget as HTMLButtonElement).style.color = C.textPrimary; }}
       onMouseLeave={(e) => { if (!active) (e.currentTarget as HTMLButtonElement).style.color = C.textSecondary; }}
@@ -91,14 +89,7 @@ export function Toolbar({
     <div
       role="toolbar"
       aria-label="Graph controls"
-      style={{
-        position: 'absolute', top: 12, left: '50%', transform: 'translateX(-50%)',
-        zIndex: 10, display: 'flex', alignItems: 'center', gap: 3, padding: 4,
-        background: C.bgPanel,
-        border: `1px solid ${C.border}`,
-        borderRadius: 10,
-        boxShadow: '0 4px 20px rgba(0,0,0,0.6)',
-      }}
+      style={toolbarRowStyle}
     >
       {/* View Mode */}
       <ToolbarGroup label="View mode">

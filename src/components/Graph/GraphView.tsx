@@ -31,6 +31,7 @@ import { Toolbar, type ViewMode } from './Toolbar';
 import { EdgeKindFilterBar, type EdgeKindFilterState } from './EdgeKindFilterBar';
 import { Legend } from './Legend';
 import { EmptyState } from './EmptyState';
+import { toolbarButtonBaseStyle, toolbarRowStyle, toolbarStackStyle } from './toolbarStyles';
 
 // ── URL state helpers ─────────────────────────────────────────────────────────
 
@@ -462,65 +463,67 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
         />
       </ReactFlow>
 
-      <Toolbar
-        viewMode={viewMode}
-        onViewModeChange={setViewMode}
-        layoutDirection={layoutDirection}
-        onDirectionChange={setLayoutDirection}
-        groupingMode={groupingMode}
-        onGroupingChange={setGroupingMode}
-        fitEnabled={fitEnabled}
-        onFitToggle={toggleFit}
-        onReorganize={handleReorganize}
-      />
-      <EdgeKindFilterBar filter={edgeKindFilter} onFilterChange={setEdgeKindFilter} showNamedRanges={showNamedRanges} showTables={showTables} />
+      <div style={toolbarStackStyle}>
+        <Toolbar
+          viewMode={viewMode}
+          onViewModeChange={setViewMode}
+          layoutDirection={layoutDirection}
+          onDirectionChange={setLayoutDirection}
+          groupingMode={groupingMode}
+          onGroupingChange={setGroupingMode}
+          fitEnabled={fitEnabled}
+          onFitToggle={toggleFit}
+          onReorganize={handleReorganize}
+        />
+        <EdgeKindFilterBar filter={edgeKindFilter} onFilterChange={setEdgeKindFilter} showNamedRanges={showNamedRanges} showTables={showTables} />
 
-      {/* Named Ranges toggle — only shown when workbooks contain named ranges */}
-      {hasNamedRanges && viewMode !== 'overview' && (
-        <button
-          onClick={() => setShowNamedRanges((v) => !v)}
-          style={{
-            position: 'absolute', top: 92, left: '50%', transform: 'translateX(-50%)',
-            zIndex: 10, display: 'flex', alignItems: 'center', gap: 5, padding: '5px 12px',
-            background: showNamedRanges ? `${C.emerald}22` : C.bgPanel,
-            border: `1px solid ${showNamedRanges ? `${C.emerald}55` : C.border}`,
-            borderRadius: 10, cursor: 'pointer',
-            boxShadow: showNamedRanges ? `0 4px 20px rgba(0,0,0,0.6), 0 0 8px ${C.emeraldGlow}` : '0 4px 20px rgba(0,0,0,0.6)',
-            transition: 'all 0.15s',
-          }}
-        >
-          <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke={showNamedRanges ? C.emerald : C.textMuted} strokeWidth={1.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z" />
-            <path strokeLinecap="round" strokeLinejoin="round" d="M6 6h.008v.008H6V6z" />
-          </svg>
-          <span style={{ fontSize: 10, fontWeight: 600, color: showNamedRanges ? C.emerald : C.textMuted }}>
-            Named Ranges
-          </span>
-        </button>
-      )}
+        {(hasNamedRanges || hasTables) && viewMode !== 'overview' && (
+          <div style={toolbarRowStyle}>
+            {hasNamedRanges && (
+              <button
+                onClick={() => setShowNamedRanges((v) => !v)}
+                style={{
+                  ...toolbarButtonBaseStyle,
+                  background: showNamedRanges ? `${C.emerald}22` : 'transparent',
+                  color: showNamedRanges ? C.emerald : C.textMuted,
+                  boxShadow: showNamedRanges ? `0 0 8px ${C.emeraldGlow}` : 'none',
+                }}
+                onMouseEnter={(e) => { if (!showNamedRanges) (e.currentTarget as HTMLButtonElement).style.color = C.textSecondary; }}
+                onMouseLeave={(e) => { if (!showNamedRanges) (e.currentTarget as HTMLButtonElement).style.color = C.textMuted; }}
+              >
+                <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke={showNamedRanges ? C.emerald : C.textMuted} strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 6h.008v.008H6V6z" />
+                </svg>
+                <span style={{ fontSize: 11, fontWeight: 600, color: showNamedRanges ? C.emerald : C.textMuted }}>
+                  Named Ranges
+                </span>
+              </button>
+            )}
 
-      {/* Tables toggle — only shown when workbooks contain Excel tables */}
-      {hasTables && viewMode !== 'overview' && (
-        <button
-          onClick={() => setShowTables((v) => !v)}
-          style={{
-            position: 'absolute', top: 132, left: '50%', transform: 'translateX(-50%)',
-            zIndex: 10, display: 'flex', alignItems: 'center', gap: 5, padding: '5px 12px',
-            background: showTables ? C.violetDim : C.bgPanel,
-            border: `1px solid ${showTables ? `${C.violet}55` : C.border}`,
-            borderRadius: 10, cursor: 'pointer',
-            boxShadow: showTables ? `0 4px 20px rgba(0,0,0,0.6), 0 0 8px ${C.violetGlow}` : '0 4px 20px rgba(0,0,0,0.6)',
-            transition: 'all 0.15s',
-          }}
-        >
-          <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke={showTables ? C.violet : C.textMuted} strokeWidth={1.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M3 6h18M3 12h18M3 18h18M9 3v18M15 3v18" />
-          </svg>
-          <span style={{ fontSize: 10, fontWeight: 600, color: showTables ? C.violet : C.textMuted }}>
-            Tables
-          </span>
-        </button>
-      )}
+            {hasTables && (
+              <button
+                onClick={() => setShowTables((v) => !v)}
+                style={{
+                  ...toolbarButtonBaseStyle,
+                  background: showTables ? C.violetDim : 'transparent',
+                  color: showTables ? C.violet : C.textMuted,
+                  boxShadow: showTables ? `0 0 8px ${C.violetGlow}` : 'none',
+                }}
+                onMouseEnter={(e) => { if (!showTables) (e.currentTarget as HTMLButtonElement).style.color = C.textSecondary; }}
+                onMouseLeave={(e) => { if (!showTables) (e.currentTarget as HTMLButtonElement).style.color = C.textMuted; }}
+              >
+                <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke={showTables ? C.violet : C.textMuted} strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 6h18M3 12h18M3 18h18M9 3v18M15 3v18" />
+                </svg>
+                <span style={{ fontSize: 11, fontWeight: 600, color: showTables ? C.violet : C.textMuted }}>
+                  Tables
+                </span>
+              </button>
+            )}
+          </div>
+        )}
+      </div>
 
       <Legend showNamedRanges={showNamedRanges} showTables={showTables} />
 

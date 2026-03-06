@@ -1,5 +1,6 @@
 import type { EdgeKind } from '../../lib/graph';
 import { C } from './constants';
+import { toolbarButtonBaseStyle, toolbarDividerStyle, toolbarRowStyle } from './toolbarStyles';
 
 export type EdgeKindFilterState = Record<EdgeKind, boolean>;
 
@@ -37,14 +38,7 @@ export function EdgeKindFilterBar({ filter, onFilterChange, showNamedRanges, sho
   }
 
   return (
-    <div style={{
-      position: 'absolute', top: 52, left: '50%', transform: 'translateX(-50%)',
-      zIndex: 10, display: 'flex', alignItems: 'center', gap: 3, padding: 4,
-      background: C.bgPanel,
-      border: `1px solid ${C.border}`,
-      borderRadius: 10,
-      boxShadow: '0 4px 20px rgba(0,0,0,0.6)',
-    }}>
+    <div style={toolbarRowStyle}>
       {/* Per-kind toggles */}
       {visibleOptions.map(({ kind, label, color }) => {
         const on = filter[kind];
@@ -54,12 +48,9 @@ export function EdgeKindFilterBar({ filter, onFilterChange, showNamedRanges, sho
             key={kind}
             onClick={() => toggleKind(kind)}
             style={{
-              display: 'flex', alignItems: 'center', gap: 5,
-              padding: '4px 10px', borderRadius: 7, border: 'none', cursor: 'pointer',
-              fontSize: 10, fontWeight: 600,
+              ...toolbarButtonBaseStyle,
               background: on ? `${color}22` : 'transparent',
               color: on ? color : C.textMuted,
-              transition: 'all 0.15s',
             }}
             onMouseEnter={(e) => { if (!on) (e.currentTarget as HTMLElement).style.color = C.textSecondary; }}
             onMouseLeave={(e) => { if (!on) (e.currentTarget as HTMLElement).style.color = C.textMuted; }}
@@ -76,17 +67,15 @@ export function EdgeKindFilterBar({ filter, onFilterChange, showNamedRanges, sho
       })}
 
       {/* Divider */}
-      <div style={{ width: 1, height: 16, background: C.border, margin: '0 2px' }} />
+      <div aria-hidden="true" style={toolbarDividerStyle} />
 
       {/* Presets */}
       <button
         onClick={crossOnly ? setAll : setCrossFileOnly}
         style={{
-          padding: '4px 10px', borderRadius: 7, border: 'none', cursor: 'pointer',
-          fontSize: 10, fontWeight: 600,
+          ...toolbarButtonBaseStyle,
           background: crossOnly ? '#818cf822' : 'transparent',
           color: crossOnly ? '#818cf8' : C.textMuted,
-          transition: 'all 0.15s',
         }}
         onMouseEnter={(e) => { if (!crossOnly) (e.currentTarget as HTMLElement).style.color = C.textSecondary; }}
         onMouseLeave={(e) => { if (!crossOnly) (e.currentTarget as HTMLElement).style.color = C.textMuted; }}

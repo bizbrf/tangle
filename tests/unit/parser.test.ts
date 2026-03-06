@@ -136,6 +136,19 @@ describe('extractReferences — bracketed filename external ref (PARSE-05)', () 
     expect(workload.crossSheetRefs).toBe(0)
     expect(workload.withinSheetRefs).toBe(0)
   })
+
+  it("PARSE-05: tolerates malformed external refs like [Book.xlsx]'Sheet Name'!A1 from generated fixtures", () => {
+    const sheet: XLSX.WorkSheet = {}
+    sheet['A1'] = { t: 'n', v: 0, f: "[financial-projection.xlsx]'Balance Sheet'!I16" }
+    sheet['!ref'] = 'A1:A1'
+
+    const { references } = extractReferences(sheet, 'Capital Summary', 'capital-model.xlsx', new Map(), new Map())
+
+    expect(references).toHaveLength(1)
+    expect(references[0].targetWorkbook).toBe('financial-projection.xlsx')
+    expect(references[0].targetSheet).toBe('Balance Sheet')
+    expect(references[0].cells).toContain('I16')
+  })
 })
 
 // ── PARSE-06 + PARSE-07: Named range detection and dedup ──────────────────────

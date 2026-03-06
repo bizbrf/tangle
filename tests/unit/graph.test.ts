@@ -3,7 +3,7 @@
 // Covers: GRAPH-01, GRAPH-02, GRAPH-03, GRAPH-04, GRAPH-05, GRAPH-06, GRAPH-07, GRAPH-08, GRAPH-09, GRAPH-10
 import { describe, it, expect } from 'vitest'
 import type { WorkbookFile, SheetReference, SheetWorkload } from '../../src/types'
-import { buildGraph, reorganizeLayout } from '../../src/lib/graph'
+import { buildGraph, reorganizeLayout, randomizeLayout } from '../../src/lib/graph'
 
 // ── Shared factory ────────────────────────────────────────────────────────────
 
@@ -14,12 +14,13 @@ const zeroWorkload: SheetWorkload = {
 function makeWorkbook(
   name: string,
   sheets: { sheetName: string; refs?: SheetReference[] }[],
+  options?: { originalName?: string; storageName?: string },
 ): WorkbookFile {
   return {
     id: name,
     name,
-    originalName: name,
-    storageName: name,
+    originalName: options?.originalName ?? name,
+    storageName: options?.storageName ?? name,
     namedRanges: [],
     tables: [],
     sheets: sheets.map(({ sheetName, refs = [] }) => ({
@@ -159,6 +160,35 @@ describe('GRAPH-03: edge kind classification', () => {
     const { edges } = buildGraph([wbWithNR], 'graph', new Set(), true)
     const nrEdge = edges.find(e => e.data!.edgeKind === 'named-range')
     expect(nrEdge).toBeDefined()
+  })
+})
+
+describe('GRAPH-03B: duplicate original filenames still resolve as uploaded', () => {
+  it('cross-file refs target every uploaded copy that shares the original filename', () => {
+    const crossFileRef: SheetReference = {
+      targetWorkbook: 'Actuals-2026.xlsx',
+      targetSheet: 'Q1 Actuals',
+      cells: ['A1'],
+      formula: '[Actuals-2026.xlsx]Q1 Actuals!A1',
+      sourceCell: 'B2',
+    }
+
+    const budget = makeWorkbook('budget-2026.xlsx', [{ sheetName: 'Revenue', refs: [crossFileRef] }])
+    const actualsA = makeWorkbook(
+      'actuals-2026.xlsx',
+      [{ sheetName: 'Q1 Actuals' }],
+      { originalName: 'Actuals-2026.xlsx' },
+    )
+    const actualsB = makeWorkbook(
+      'actuals-2026_a1b2c3.xlsx',
+      [{ sheetName: 'Q1 Actuals' }],
+      { originalName: 'Actuals-2026.xlsx', storageName: 'actuals-2026_a1b2c3.xlsx' },
+    )
+
+    const { nodes, edges } = buildGraph([budget, actualsA, actualsB])
+
+    expect(nodes.some((node) => node.data.isExternal && node.data.workbookName === 'Actuals-2026.xlsx')).toBe(false)
+    expect(edges.filter((edge) => edge.data?.edgeKind === 'cross-file')).toHaveLength(2)
   })
 })
 
@@ -374,6 +404,32 @@ describe('GRAPH-08: layout direction (LR vs TB) changes node positions', () => {
       expect(node.position.y).toBeGreaterThanOrEqual(0)
     }
   })
+
+  it('TB direction wraps dense ranks instead of staying in one ultra-wide row', () => {
+    const summaryRef = (sheetName: string): SheetReference => ({
+      targetWorkbook: null,
+      targetSheet: 'Summary',
+      cells: ['A1'],
+      formula: 'Summary!A1',
+      sourceCell: `${sheetName}!A1`,
+    })
+    const wideWorkbook = makeWorkbook('Wide.xlsx', [
+      { sheetName: 'Summary' },
+      ...Array.from({ length: 18 }, (_, index) => ({
+        sheetName: `Leaf${index + 1}`,
+        refs: [summaryRef(`Leaf${index + 1}`)],
+      })),
+    ])
+
+    const { nodes } = buildGraph([wideWorkbook], 'graph', new Set(), false, false, 'TB')
+    const leafRows = new Set(
+      nodes
+        .filter((node) => node.data.sheetName.startsWith('Leaf'))
+        .map((node) => node.position.y),
+    )
+
+    expect(leafRows.size).toBeGreaterThan(1)
+  })
 })
 
 // ── GRAPH-09: table nodes toggle with showTables flag ─────────────────────────
@@ -557,5 +613,42 @@ describe('GRAPH-10: reorganizeLayout', () => {
       expect(isNaN(n.position.x)).toBe(false)
       expect(isNaN(n.position.y)).toBe(false)
     }
+  })
+
+  it('randomize layout keeps the layered layout style while changing positions', () => {
+    const wbAMulti = makeWorkbook('FileA.xlsx', [
+      { sheetName: 'Source1' },
+      { sheetName: 'Source2' },
+      { sheetName: 'Source3' },
+      { sheetName: 'Source4' },
+    ])
+    const wbBMulti = makeWorkbook('FileB.xlsx', [
+      {
+        sheetName: 'Consumer',
+        refs: [
+          { targetWorkbook: 'FileA.xlsx', targetSheet: 'Source1', cells: ['A1'], formula: '[FileA.xlsx]Source1!A1', sourceCell: 'A1' },
+          { targetWorkbook: 'FileA.xlsx', targetSheet: 'Source2', cells: ['A1'], formula: '[FileA.xlsx]Source2!A1', sourceCell: 'A2' },
+          { targetWorkbook: 'FileA.xlsx', targetSheet: 'Source3', cells: ['A1'], formula: '[FileA.xlsx]Source3!A1', sourceCell: 'A3' },
+          { targetWorkbook: 'FileA.xlsx', targetSheet: 'Source4', cells: ['A1'], formula: '[FileA.xlsx]Source4!A1', sourceCell: 'A4' },
+        ],
+      },
+    ])
+    const { nodes, edges } = buildGraph([wbAMulti, wbBMulti], 'graph', new Set(), false, false, 'LR')
+    const first = randomizeLayout(nodes, edges, 'graph', 'LR', 1)
+    const second = randomizeLayout(nodes, edges, 'graph', 'LR', 2)
+    const firstById = new Map(first.map((node) => [node.id, node.position]))
+    const secondById = new Map(second.map((node) => [node.id, node.position]))
+
+    expect(firstById.get('FileA.xlsx::Source1')!.x).toBeLessThan(firstById.get('FileB.xlsx::Consumer')!.x)
+    expect(firstById.get('FileA.xlsx::Source2')!.x).toBeLessThan(firstById.get('FileB.xlsx::Consumer')!.x)
+    expect(firstById.get('FileA.xlsx::Source3')!.x).toBeLessThan(firstById.get('FileB.xlsx::Consumer')!.x)
+    expect(firstById.get('FileA.xlsx::Source4')!.x).toBeLessThan(firstById.get('FileB.xlsx::Consumer')!.x)
+
+    expect(
+      first.some((node) => {
+        const other = secondById.get(node.id)
+        return other && (node.position.x !== other.x || node.position.y !== other.y)
+      }),
+    ).toBe(true)
   })
 })

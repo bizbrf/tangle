@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import type { WorkbookFile } from '../../types';
 import { parseWorkbook, EXCEL_EXTENSIONS } from '../../lib/parser';
-import { resolveCollision } from '../../lib/filenameSanitizer';
+import { formatDuplicateImportNotice, resolveImportedWorkbooks } from './importUtils';
 
 interface FilePanelProps {
   workbooks: WorkbookFile[];
@@ -86,11 +86,13 @@ export function FilePanel({ workbooks, onWorkbooksChange, onLocateFile, hiddenFi
   const [dragging, setDragging] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   async function handleFiles(files: FileList | null) {
     if (!files || files.length === 0) return;
     setError(null);
+    setNotice(null);
     const excelFiles = Array.from(files).filter((f) =>
       EXCEL_EXTENSIONS.some((ext) => f.name.toLowerCase().endsWith(ext)),
     );
@@ -102,24 +104,16 @@ export function FilePanel({ workbooks, onWorkbooksChange, onLocateFile, hiddenFi
       const parsed = await Promise.all(
         excelFiles.map((f) => parseWorkbook(f, crypto.randomUUID())),
       );
-      // Resolve storageName collisions against already-loaded workbooks and
-      // within the newly uploaded batch itself.
-      const usedStorageNames = new Set(workbooks.map((wb) => wb.storageName));
-      const resolved = parsed.map((wb) => {
-        const unique = resolveCollision(wb.storageName, usedStorageNames, wb.originalName);
-        usedStorageNames.add(unique);
-        // Set name = storageName so graph IDs, hide/highlight state and reference
-        // resolution all use the same unique, OS-safe key. originalName is kept
-        // as-is purely for sidebar display.
-        return { ...wb, storageName: unique, name: unique };
-      });
+      const { workbooks: resolved, duplicateOriginalNames } = resolveImportedWorkbooks(workbooks, parsed);
       onWorkbooksChange([...workbooks, ...resolved]);
+      setNotice(formatDuplicateImportNotice(duplicateOriginalNames));
       setExpanded((prev) => {
         const next = new Set(prev);
         resolved.forEach((wb) => next.add(wb.id));
         return next;
       });
     } catch {
+      setNotice(null);
       setError('Failed to parse one or more files.');
     }
   }
@@ -181,7 +175,10 @@ export function FilePanel({ workbooks, onWorkbooksChange, onLocateFile, hiddenFi
             setDragging(false);
             handleFiles(e.dataTransfer.files);
           }}
-          onClick={() => inputRef.current?.click()}
+          onClick={() => {
+            if (inputRef.current) inputRef.current.value = '';
+            inputRef.current?.click();
+          }}
         >
           <div
             className="w-9 h-9 rounded-lg flex items-center justify-center mb-2.5"
@@ -202,7 +199,10 @@ export function FilePanel({ workbooks, onWorkbooksChange, onLocateFile, hiddenFi
             accept=".xlsx,.xls,.xlsm,.xlsb"
             multiple
             className="hidden"
-            onChange={(e) => handleFiles(e.target.files)}
+            onChange={(e) => {
+              handleFiles(e.target.files);
+              e.currentTarget.value = '';
+            }}
           />
         </div>
       </div>
@@ -212,6 +212,13 @@ export function FilePanel({ workbooks, onWorkbooksChange, onLocateFile, hiddenFi
         <p data-testid="upload-error" className="mx-3 mb-2 text-xs px-2 py-1.5 rounded-lg"
           style={{ color: '#e8445a', background: 'rgba(232,68,90,0.1)', border: '1px solid rgba(232,68,90,0.2)' }}>
           {error}
+        </p>
+      )}
+
+      {notice && (
+        <p data-testid="upload-notice" className="mx-3 mb-2 text-xs px-2 py-1.5 rounded-lg"
+          style={{ color: '#fbbf24', background: 'rgba(251,191,36,0.1)', border: '1px solid rgba(251,191,36,0.25)' }}>
+          {notice}
         </p>
       )}
 

@@ -39,32 +39,26 @@ test('E2E-18: switching back to LR from TB keeps nodes visible', async ({ page }
   await expect(page.getByTestId('sheet-node').first()).toBeVisible()
 })
 
-// E2E-19: Grouping by-type mode renders nodes for a multi-sheet workbook
-test('E2E-19: group-by-type mode renders nodes', async ({ page }) => {
+// E2E-19: Grouping controls were removed in favor of table/named-range split toggles
+test('E2E-19: grouping controls are not shown', async ({ page }) => {
   await uploadFile(page, 'cross-sheet.xlsx')
   await waitForNodes(page)
 
-  await page.getByTestId('group-by-type').click()
-
-  // Nodes should still be visible in grouped mode
-  await expect(page.getByTestId('sheet-node').first()).toBeVisible()
+  await expect(page.getByTestId('group-off')).toHaveCount(0)
+  await expect(page.getByTestId('group-by-type')).toHaveCount(0)
+  await expect(page.getByTestId('group-by-table')).toHaveCount(0)
 })
 
-// E2E-20: Switching grouping off restores node count
-test('E2E-20: switching grouping off restores nodes', async ({ page }) => {
+// E2E-20: Legacy grouping params are ignored once graph controls persist state
+test('E2E-20: legacy grouping URL params are ignored', async ({ page }) => {
+  await page.goto('/?group=by-type')
+
   await uploadFile(page, 'cross-sheet.xlsx')
   await waitForNodes(page)
+  await page.getByTestId('direction-TB').click()
 
-  // Note the node count in graph mode
-  const graphCount = await page.getByTestId('sheet-node').count()
-
-  // Switch to by-type grouping
-  await page.getByTestId('group-by-type').click()
   await expect(page.getByTestId('sheet-node').first()).toBeVisible()
-
-  // Switch grouping off
-  await page.getByTestId('group-off').click()
-  await expect(page.getByTestId('sheet-node')).toHaveCount(graphCount)
+  expect(page.url()).not.toContain('group=')
 })
 
 // E2E-21: Direction buttons are hidden in Overview mode

@@ -15,6 +15,10 @@ const REF_WITH_CELL_RE = new RegExp(
   `(?:'(?:\\[([^\\]]+)\\])?([^']+)'|(?:\\[([^\\]]+)\\])?(${UNQUOTED_SHEET}))!(${CELL_RE})`,
   'g',
 );
+const MALFORMED_EXT_QUOTED_RE = new RegExp(
+  `\\[([^\\]]+)\\]'([^']+)'!(${CELL_RE})`,
+  'g',
+);
 
 // 3D reference: Sheet1:Sheet3!A1 or 'Sheet 1':'Sheet 3'!A1:B2
 // Captures: [1] startSheet quoted, [2] endSheet quoted, [3] startSheet unquoted,
@@ -42,6 +46,10 @@ const SPILL_SUFFIX_RE = new RegExp(
 // File entry from SheetJS bookFiles — could be a raw buffer, a string, or an
 // object with a `.content` property (CFB container entry).
 interface CfbEntry { content: ArrayBuffer | Uint8Array; [k: string]: unknown }
+
+function unescapeQuotedSheetName(sheetName: string): string {
+  return sheetName.replace(/''/g, "'");
+}
 
 function readFileEntry(entry: unknown): string | null {
   if (!entry) return null;
@@ -126,7 +134,7 @@ export function extractNamedRanges(wb: XLSX.WorkBook): NamedRange[] {
       cells = ref.slice(bangIdx + 1);
       // Strip surrounding quotes from sheet name
       if (sheetPart.startsWith("'") && sheetPart.endsWith("'")) {
-        sheetPart = sheetPart.slice(1, -1);
+        sheetPart = unescapeQuotedSheetName(sheetPart.slice(1, -1));
       }
       targetSheet = sheetPart;
     }
@@ -227,6 +235,7 @@ export function extractReferences(
     if (cellAddr.startsWith('!') || !cell || typeof cell !== 'object') continue;
     const formula: string | undefined = (cell as XLSX.CellObject).f;
     if (!formula) continue;
+    const formulaText = formula;
 
     workload.totalFormulas++;
 
@@ -235,14 +244,9 @@ export function extractReferences(
     // Group matches per (workbook, sheet) pair within this formula
     const byTarget = new Map<string, SheetReference>();
 
-    while ((match = REF_WITH_CELL_RE.exec(formula)) !== null) {
-      const [, wbQuoted, sheetQuoted, wbUnquoted, sheetUnquoted, cellRange] = match;
-      let targetWorkbook = wbQuoted ?? wbUnquoted ?? null;
-      const targetSheet = sheetQuoted ?? sheetUnquoted;
+    function addFormulaReference(targetWorkbook: string | null, targetSheet: string, cellRange: string) {
+      if (!targetSheet) return;
 
-      if (!targetSheet) continue;
-
-      // Resolve numeric external link indices: [1] → actual filename
       if (targetWorkbook && linkMap.has(targetWorkbook)) {
         targetWorkbook = linkMap.get(targetWorkbook)!;
       }
@@ -251,13 +255,13 @@ export function extractReferences(
       const tgtSheet = targetSheet.toLowerCase();
       if (!targetWorkbook && tgtSheet === selfSheet) {
         workload.withinSheetRefs++;
-        continue;
+        return;
       }
       if (targetWorkbook) {
         const tgtWb = targetWorkbook.toLowerCase().replace(EXCEL_EXT_RE, '');
         if (tgtWb === selfWb && tgtSheet === selfSheet) {
           workload.withinSheetRefs++;
-          continue;
+          return;
         }
       }
 
@@ -267,11 +271,29 @@ export function extractReferences(
           targetWorkbook,
           targetSheet,
           cells: [],
-          formula,
+          formula: formulaText,
           sourceCell: cellAddr,
         });
       }
       byTarget.get(key)!.cells.push(cellRange);
+    }
+
+    while ((match = REF_WITH_CELL_RE.exec(formula)) !== null) {
+      const [, wbQuoted, sheetQuoted, wbUnquoted, sheetUnquoted, cellRange] = match;
+      if (!wbQuoted && sheetQuoted && match.index > 0 && formula[match.index - 1] === ']') {
+        continue;
+      }
+      addFormulaReference(
+        wbQuoted ?? wbUnquoted ?? null,
+        sheetQuoted ? unescapeQuotedSheetName(sheetQuoted) : sheetUnquoted,
+        cellRange,
+      );
+    }
+
+    MALFORMED_EXT_QUOTED_RE.lastIndex = 0;
+    while ((match = MALFORMED_EXT_QUOTED_RE.exec(formula)) !== null) {
+      const [, wbMalformed, sheetMalformed, cellRange] = match;
+      addFormulaReference(wbMalformed, unescapeQuotedSheetName(sheetMalformed), cellRange);
     }
 
     // Second pass: detect named range references in this formula
@@ -293,7 +315,7 @@ export function extractReferences(
             targetWorkbook: nr.targetWorkbook,
             targetSheet: nr.targetSheet,
             cells: [nr.cells],
-            formula,
+            formula: formulaText,
             sourceCell: cellAddr,
             namedRangeName: nr.name,
           });
@@ -320,7 +342,7 @@ export function extractReferences(
             targetWorkbook: null,
             targetSheet: table.targetSheet,
             cells: [table.cells],
-            formula,
+            formula: formulaText,
             sourceCell: cellAddr,
             tableName: table.name,
           });
@@ -359,7 +381,7 @@ export function extractReferences(
             targetWorkbook: null,
             targetSheet: table.targetSheet,
             cells: [table.cells],
-            formula,
+            formula: formulaText,
             sourceCell: cellAddr,
             tableName: table.name,
           });
@@ -373,8 +395,8 @@ export function extractReferences(
       let m3d: RegExpExecArray | null;
       while ((m3d = REF_3D_RE.exec(formula)) !== null) {
         const [, startQuoted, endQuoted, startUnquoted, endUnquoted, cellRange] = m3d;
-        const startSheet = startQuoted ?? startUnquoted;
-        const endSheet = endQuoted ?? endUnquoted;
+        const startSheet = startQuoted ? unescapeQuotedSheetName(startQuoted) : startUnquoted;
+        const endSheet = endQuoted ? unescapeQuotedSheetName(endQuoted) : endUnquoted;
         if (!startSheet || !endSheet) continue;
 
         const tgtSheet = startSheet.toLowerCase();
@@ -390,7 +412,7 @@ export function extractReferences(
             targetWorkbook: null,
             targetSheet: startSheet,
             cells: [cellRange],
-            formula,
+            formula: formulaText,
             sourceCell: cellAddr,
             is3DRef: true,
             sheetRangeEnd: endSheet,
@@ -408,7 +430,7 @@ export function extractReferences(
       while ((sMatch = SPILL_SUFFIX_RE.exec(formula)) !== null) {
         const [, wbQuotedS, sheetQuotedS, wbUnquotedS, sheetUnquotedS, cellRangeS] = sMatch;
         let targetWorkbookS = wbQuotedS ?? wbUnquotedS ?? null;
-        const targetSheetS = sheetQuotedS ?? sheetUnquotedS ?? null;
+        const targetSheetS = sheetQuotedS ? unescapeQuotedSheetName(sheetQuotedS) : sheetUnquotedS ?? null;
 
         // Resolve numeric external link indices
         if (targetWorkbookS && linkMap.has(targetWorkbookS)) {
@@ -436,7 +458,7 @@ export function extractReferences(
               targetWorkbook: targetWorkbookS,
               targetSheet: targetSheetS,
               cells: [`${cellRangeS}#`],
-              formula,
+              formula: formulaText,
               sourceCell: cellAddr,
               isSpill: true,
             });
@@ -514,7 +536,7 @@ export function extractReferences(
             targetWorkbook: null,
             targetSheet: table.targetSheet,
             cells: [table.cells],
-            formula,
+            formula: formulaText,
             sourceCell: cellAddr,
             tableName: table.name,
             structuredRef,

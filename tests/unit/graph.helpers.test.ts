@@ -5,7 +5,7 @@
 import { describe, it, expect } from 'vitest'
 import type { Node } from '@xyflow/react'
 import type { SheetReference, WorkbookFile, SheetWorkload } from '../../src/types'
-import { stripExcelExt, computeClusterNodes, buildGraph, type NodeData } from '../../src/lib/graph'
+import { applyLayoutAlgorithm, stripExcelExt, computeClusterNodes, buildGraph, radialLayout, randomizeLayout, type NodeData } from '../../src/lib/graph'
 
 // ── Shared factory ────────────────────────────────────────────────────────────
 
@@ -290,5 +290,124 @@ describe('HELPER-06: cross-file ref to unregistered sheet in uploaded workbook',
     expect(phantomNode).toBeDefined()
     // And there should be an edge connecting it
     expect(edges.length).toBeGreaterThan(0)
+  })
+})
+
+describe('HELPER-07: randomizeLayout', () => {
+  function makeNode(id: string, workbookName: string, x: number, y: number): Node<NodeData> {
+    return {
+      id,
+      type: 'sheet',
+      position: { x, y },
+      data: {
+        label: id,
+        workbookName,
+        sheetName: id,
+        isExternal: false,
+        isFileNode: false,
+        isNamedRange: false,
+        isTable: false,
+        outgoingCount: 0,
+        incomingCount: 0,
+        workload: null,
+      },
+    }
+  }
+
+  it('returns deterministic positions for the same seed', () => {
+    const nodes = [
+      makeNode('n1', 'FileA.xlsx', 0, 0),
+      makeNode('n2', 'FileA.xlsx', 10, 10),
+      makeNode('n3', 'FileB.xlsx', 20, 20),
+      makeNode('n4', 'FileB.xlsx', 30, 30),
+      makeNode('n5', 'FileB.xlsx', 40, 40),
+    ]
+    const edges = [
+      { id: 'n1->n2', source: 'n1', target: 'n2', data: { references: [], refCount: 0, edgeKind: 'internal' }, type: 'weighted' as const },
+      { id: 'n1->n3', source: 'n1', target: 'n3', data: { references: [], refCount: 0, edgeKind: 'cross-file' }, type: 'weighted' as const },
+      { id: 'n1->n4', source: 'n1', target: 'n4', data: { references: [], refCount: 0, edgeKind: 'cross-file' }, type: 'weighted' as const },
+      { id: 'n1->n5', source: 'n1', target: 'n5', data: { references: [], refCount: 0, edgeKind: 'cross-file' }, type: 'weighted' as const },
+    ]
+
+    const first = randomizeLayout(nodes, edges, 'graph', 'LR', 42)
+    const second = randomizeLayout(nodes, edges, 'graph', 'LR', 42)
+
+    expect(first.map((node) => node.position)).toEqual(second.map((node) => node.position))
+  })
+
+  it('can generate a different layout for a different seed', () => {
+    const nodes = [
+      makeNode('n1', 'FileA.xlsx', 0, 0),
+      makeNode('n2', 'FileA.xlsx', 10, 10),
+      makeNode('n3', 'FileB.xlsx', 20, 20),
+      makeNode('n4', 'FileB.xlsx', 30, 30),
+      makeNode('n5', 'FileB.xlsx', 40, 40),
+    ]
+    const edges = [
+      { id: 'n1->n2', source: 'n1', target: 'n2', data: { references: [], refCount: 0, edgeKind: 'internal' }, type: 'weighted' as const },
+      { id: 'n1->n3', source: 'n1', target: 'n3', data: { references: [], refCount: 0, edgeKind: 'cross-file' }, type: 'weighted' as const },
+      { id: 'n1->n4', source: 'n1', target: 'n4', data: { references: [], refCount: 0, edgeKind: 'cross-file' }, type: 'weighted' as const },
+      { id: 'n1->n5', source: 'n1', target: 'n5', data: { references: [], refCount: 0, edgeKind: 'cross-file' }, type: 'weighted' as const },
+    ]
+
+    const first = randomizeLayout(nodes, edges, 'graph', 'LR', 1)
+    const alternatives = [2, 3, 4, 5].map((seed) => randomizeLayout(nodes, edges, 'graph', 'LR', seed))
+
+    expect(alternatives.some((candidate) =>
+      first.some((node, index) => {
+        const other = candidate[index]
+        return node.position.x !== other.position.x || node.position.y !== other.position.y
+      }))).toBe(true)
+  })
+
+  it('preserves a layered left-to-right layout instead of using a grid', () => {
+    const { nodes, edges } = buildGraph([
+      makeWorkbook('FileA.xlsx', [{ sheetName: 'Source1' }, { sheetName: 'Source2' }]),
+      makeWorkbook('FileB.xlsx', [{
+        sheetName: 'Consumer',
+        refs: [
+          { targetWorkbook: 'FileA.xlsx', targetSheet: 'Source1', cells: ['A1'], formula: '[FileA.xlsx]Source1!A1', sourceCell: 'A1' },
+          { targetWorkbook: 'FileA.xlsx', targetSheet: 'Source2', cells: ['A1'], formula: '[FileA.xlsx]Source2!A1', sourceCell: 'A2' },
+        ],
+      }]),
+    ], 'graph', new Set(), false, false, 'LR')
+
+    const randomized = randomizeLayout(nodes, edges, 'graph', 'LR', 7)
+    const byId = new Map(randomized.map((node) => [node.id, node.position]))
+
+    expect(byId.get('FileA.xlsx::Source1')!.x).toBeLessThan(byId.get('FileB.xlsx::Consumer')!.x)
+    expect(byId.get('FileA.xlsx::Source2')!.x).toBeLessThan(byId.get('FileB.xlsx::Consumer')!.x)
+  })
+
+  it('applyLayoutAlgorithm uses the organic layout for the organic option', () => {
+    const { nodes, edges } = buildGraph([
+      makeWorkbook('FileA.xlsx', [{ sheetName: 'Source1' }, { sheetName: 'Source2' }]),
+      makeWorkbook('FileB.xlsx', [{
+        sheetName: 'Consumer',
+        refs: [
+          { targetWorkbook: 'FileA.xlsx', targetSheet: 'Source1', cells: ['A1'], formula: '[FileA.xlsx]Source1!A1', sourceCell: 'A1' },
+          { targetWorkbook: 'FileA.xlsx', targetSheet: 'Source2', cells: ['A1'], formula: '[FileA.xlsx]Source2!A1', sourceCell: 'A2' },
+        ],
+      }]),
+    ], 'graph', new Set(), false, false, 'LR')
+
+    const organic = applyLayoutAlgorithm(nodes, edges, 'organic', 'graph', 'LR', 11)
+    const byId = new Map(organic.map((node) => [node.id, node.position]))
+    expect(byId.get('FileA.xlsx::Source1')!.x).toBeLessThan(byId.get('FileB.xlsx::Consumer')!.x)
+  })
+})
+
+describe('HELPER-08: radialLayout', () => {
+  it('places roots closer to the center than downstream nodes', () => {
+    const ref1 = makeExternalRef('FileB.xlsx', 'Input1')
+    const ref2 = makeExternalRef('FileB.xlsx', 'Input2')
+    const source = makeWorkbook('FileA.xlsx', [{ sheetName: 'Consumer', refs: [ref1, ref2] }])
+    const upstream = makeWorkbook('FileB.xlsx', [{ sheetName: 'Input1' }, { sheetName: 'Input2' }])
+    const { nodes, edges } = buildGraph([source, upstream], 'graph', new Set(), false, false, 'LR')
+    const radial = radialLayout(nodes, edges, 'LR', 5)
+    const byId = new Map(radial.map((node) => [node.id, node.position]))
+
+    const centerDistance = (position: { x: number; y: number }) => Math.hypot(position.x - 420, position.y - 320)
+    expect(centerDistance(byId.get('FileB.xlsx::Input1')!)).toBeLessThan(centerDistance(byId.get('FileA.xlsx::Consumer')!))
   })
 })

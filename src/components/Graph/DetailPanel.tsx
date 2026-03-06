@@ -55,10 +55,11 @@ export function DetailPanel({ selectedNodes, selectedEdge, onClose, onFocus, foc
   const panelStyle: React.CSSProperties = {
     position: 'absolute',
     bottom: 16, right: 16,
-    zIndex: 10,
+    zIndex: 20,
     width: 300,
     maxHeight: 'calc(100% - 32px)',
     overflowY: 'auto',
+    pointerEvents: 'auto',
     background: C.bgPanel,
     border: `1px solid ${C.border}`,
     borderRadius: 16,
@@ -91,10 +92,15 @@ export function DetailPanel({ selectedNodes, selectedEdge, onClose, onFocus, foc
           {isMulti ? `${selectedNodes.length} selected` : node ? (node.data.isTable ? 'Table' : node.data.isNamedRange ? 'Named Range' : 'Sheet') : 'References'}
         </span>
         <button
-          onClick={onClose}
+          data-testid="detail-panel-close"
+          onClick={(e) => {
+            e.stopPropagation();
+            onClose();
+          }}
           style={{
             background: 'none', border: 'none', cursor: 'pointer',
             color: C.textMuted, padding: 3, borderRadius: 6, display: 'flex',
+            pointerEvents: 'auto',
             transition: 'color 0.15s',
           }}
           onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.color = C.textPrimary)}

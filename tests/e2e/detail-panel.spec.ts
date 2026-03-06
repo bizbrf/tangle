@@ -59,3 +59,33 @@ test('E2E-12: clicking an edge opens detail panel with References header', async
   await waitForDetailPanel(page)
   await expect(page.getByTestId('detail-panel-title')).toContainText('References')
 })
+
+test('E2E-31: multi-select panel close button dismisses reliably', async ({ page }) => {
+  await uploadFile(page, 'cross-sheet.xlsx')
+  await waitForNodes(page)
+
+  const nodes = page.getByTestId('sheet-node')
+  await nodes.first().click({ force: true })
+  await page.keyboard.down('Shift')
+  await nodes.nth(1).click({ force: true })
+  await page.keyboard.up('Shift')
+
+  await expect(page.getByTestId('detail-panel-title')).toContainText('selected')
+  await page.getByTestId('detail-panel-close').click({ force: true })
+  await expect(page.getByTestId('detail-panel')).toBeHidden()
+})
+
+test('E2E-32: pane click clears multi-select panel', async ({ page }) => {
+  await uploadFile(page, 'cross-sheet.xlsx')
+  await waitForNodes(page)
+
+  const nodes = page.getByTestId('sheet-node')
+  await nodes.first().click({ force: true })
+  await page.keyboard.down('Shift')
+  await nodes.nth(1).click({ force: true })
+  await page.keyboard.up('Shift')
+
+  await expect(page.getByTestId('detail-panel-title')).toContainText('selected')
+  await page.locator('.react-flow__pane').click({ position: { x: 50, y: 50 }, force: true })
+  await expect(page.getByTestId('detail-panel')).toBeHidden()
+})

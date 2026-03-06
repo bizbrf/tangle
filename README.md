@@ -16,9 +16,38 @@
   <a href="https://github.com/bizbrf/tangle/actions/workflows/ci.yml">
     <img src="https://github.com/bizbrf/tangle/actions/workflows/ci.yml/badge.svg" alt="CI" />
   </a>
+  <a href="https://github.com/bizbrf/tangle/blob/main/LICENSE">
+    <img src="https://img.shields.io/github/license/bizbrf/tangle" alt="License" />
+  </a>
+  <a href="https://github.com/bizbrf/tangle/releases/latest">
+    <img src="https://img.shields.io/github/v/release/bizbrf/tangle" alt="Release" />
+  </a>
 </p>
 
 ---
+
+<!-- TODO: Add demo screenshot/GIF showing graph visualization -->
+
+> 📸 *Screenshot coming soon — [try the live demo](https://bizbrf.github.io/tangle) to see it in action*
+
+## Why Tangle?
+
+- Excel workbooks grow into tangled webs of cross-sheet and cross-file references that are invisible in Excel itself
+- Tangle makes these hidden dependencies visible as an interactive graph
+- Runs entirely in your browser — your files never leave your machine
+- Free, open source, no account required
+
+## Features
+
+- 📊 Visualize sheet-to-sheet and file-to-file references as an interactive graph
+- 🔍 Click any node or edge to see formula details
+- 📁 Drag-and-drop multiple `.xlsx` files
+- 🔀 Multiple layout modes (left-right, top-bottom, grouped by workbook)
+- 🎯 Focus mode — isolate a sheet and its neighbors
+- 🙈 Hide/show workbooks to reduce clutter
+- 🌐 Works in any modern browser — no install needed
+- 💻 Optional Windows desktop app via Tauri
+- 🔒 100% client-side — your data stays on your machine
 
 ## What it does
 

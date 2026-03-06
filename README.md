@@ -9,17 +9,13 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/bizbrf/tangle/releases/latest/download/Tangle-Setup.exe">Download for Windows</a>
+  <strong><a href="https://bizbrf.github.io/tangle">▶ Try it in your browser</a></strong> · <a href="https://github.com/bizbrf/tangle/releases/latest/download/Tangle-Setup.exe">Download for Windows</a> · <a href="#run-from-source">Run from source</a>
 </p>
 
 <p align="center">
   <a href="https://github.com/bizbrf/tangle/actions/workflows/ci.yml">
     <img src="https://github.com/bizbrf/tangle/actions/workflows/ci.yml/badge.svg" alt="CI" />
   </a>
-</p>
-
-<p align="center">
-  <a href="https://bizbrf.github.io/tangle"><img src="https://img.shields.io/badge/Live%20Demo-bizbrf.github.io%2Ftangle-e8445a?style=flat-square" alt="Live Demo" /></a>
 </p>
 
 ---
@@ -105,16 +101,20 @@ Clicking any node opens a detail panel on the right side of the canvas. The pane
 
 The `f(x)` badge on a node indicates it contains formulas.
 
-## Install
+## Ways to use Tangle
 
-### Windows (recommended)
+### 1. Web app (easiest)
+
+Open **[bizbrf.github.io/tangle](https://bizbrf.github.io/tangle)** — no install, no sign-up, works in any modern browser. Your files stay on your machine; nothing is uploaded.
+
+### 2. Windows desktop app
 
 Download the latest installer — no dependencies required.
 
 - **[Tangle-Setup.exe](https://github.com/bizbrf/tangle/releases/latest/download/Tangle-Setup.exe)** — recommended (NSIS installer)
 - **[Tangle-Setup.msi](https://github.com/bizbrf/tangle/releases/latest/download/Tangle-Setup.msi)** — MSI format
 
-### Run from source
+### 3. Run from source
 
 Requires Node.js 18+.
 
@@ -127,9 +127,7 @@ npm run dev
 
 Open [http://localhost:5173](http://localhost:5173) in your browser.
 
-### Build the desktop app from source
-
-Requires Node.js 18+ and [Rust](https://rustup.rs/).
+To build the desktop app from source, you also need [Rust](https://rustup.rs/):
 
 ```bash
 npm run tauri:build

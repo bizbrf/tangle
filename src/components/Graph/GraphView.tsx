@@ -418,7 +418,7 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
         defaultEdgeOptions={{
           type: 'smoothstep',
           style: { stroke: C.border, strokeWidth: 1.5 },
-          markerEnd: { type: MarkerType.ArrowClosed, color: C.border, width: 8, height: 8 },
+          markerEnd: { type: MarkerType.ArrowClosed, color: C.border },
         }}
       >
         <Background

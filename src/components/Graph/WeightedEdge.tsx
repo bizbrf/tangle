@@ -1,5 +1,5 @@
+import { useEffect } from 'react';
 import {
-  BaseEdge,
   EdgeLabelRenderer,
   getBezierPath,
   useInternalNode,
@@ -9,17 +9,38 @@ import type { EdgeData } from '../../lib/graph';
 import { C } from './constants';
 import { getNodeIntersection, getEdgePosition } from './edge-helpers';
 
+const FLOW_STYLE_ID = 'tangle-edge-flow';
+
+function ensureFlowStyles() {
+  if (document.getElementById(FLOW_STYLE_ID)) return;
+  const style = document.createElement('style');
+  style.id = FLOW_STYLE_ID;
+  style.textContent = `
+    @keyframes tangle-flow-fwd {
+      from { stroke-dashoffset: 24; }
+      to   { stroke-dashoffset: 0; }
+    }
+    @keyframes tangle-flow-rev {
+      from { stroke-dashoffset: -24; }
+      to   { stroke-dashoffset: 0; }
+    }
+  `;
+  document.head.appendChild(style);
+}
+
 export function WeightedEdge({
   id,
   source, target,
   sourceX, sourceY, targetX, targetY,
   sourcePosition, targetPosition,
-  data, style, markerEnd,
+  data, style, markerEnd, animated,
 }: EdgeProps) {
   const sourceNode = useInternalNode(source);
   const targetNode = useInternalNode(target);
   const edgeData = data as EdgeData | undefined;
   const refCount = edgeData?.refCount ?? 1;
+
+  useEffect(() => { ensureFlowStyles(); }, []);
 
   // Compute floating intersection points when both nodes are available.
   let sx = sourceX, sy = sourceY, sp = sourcePosition;
@@ -37,10 +58,47 @@ export function WeightedEdge({
   });
 
   const strokeColor = (style?.stroke as string) ?? C.border;
+  const strokeWidth = (style?.strokeWidth as number) ?? 1.5;
 
   return (
     <>
-      <BaseEdge id={id} path={edgePath} style={style} markerEnd={markerEnd} />
+      {/* Base visible edge */}
+      <path
+        id={id}
+        className="react-flow__edge-path"
+        d={edgePath}
+        style={style}
+        markerEnd={markerEnd as string}
+        fill="none"
+      />
+
+      {/* Bidirectional flow animation overlay */}
+      {animated && (
+        <>
+          <path
+            d={edgePath}
+            fill="none"
+            stroke={strokeColor}
+            strokeWidth={strokeWidth}
+            strokeDasharray="12 12"
+            style={{
+              animation: 'tangle-flow-fwd 0.6s linear infinite',
+              opacity: 0.45,
+            }}
+          />
+          <path
+            d={edgePath}
+            fill="none"
+            stroke={strokeColor}
+            strokeWidth={strokeWidth}
+            strokeDasharray="12 12"
+            style={{
+              animation: 'tangle-flow-rev 0.6s linear infinite',
+              opacity: 0.3,
+            }}
+          />
+        </>
+      )}
 
       {/* Count badge — only shown when there's more than 1 reference */}
       {refCount > 1 && (

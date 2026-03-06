@@ -1,0 +1,37 @@
+name: Feature request
+description: Suggest an improvement or new capability
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Got an idea for improving Tangle? Describe it below.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: Explain the motivation. What are you trying to do that is currently difficult or impossible?
+      placeholder: "When I have 20+ sheets it's hard to find the one I care about."
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: Describe the feature or change you'd like to see.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Any other approaches you considered or workarounds you currently use.
+
+  - type: textarea
+    id: extras
+    attributes:
+      label: Additional context
+      description: Screenshots, mockups, or links to similar tools.

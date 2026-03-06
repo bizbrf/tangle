@@ -17,9 +17,12 @@ export type NodeData = {
   isNamedRange: boolean;
   namedRangeName?: string;
   namedRangeRef?: string;
+  namedRangeScope?: 'workbook' | 'sheet';
+  namedRangeScopeSheet?: string;
   isTable: boolean;
   tableName?: string;
   tableRef?: string;
+  tableColumns?: string[];
   sheetCount?: number;
   outgoingCount: number;
   incomingCount: number;
@@ -95,6 +98,20 @@ export function buildGraph(
     }
   }
 
+  // Build lookup maps for named range scope and table columns
+  const namedRangeMap = new Map<string, { scope: 'workbook' | 'sheet'; scopeSheet?: string }>();
+  const tableColumnsMap = new Map<string, string[]>();
+  for (const wb of workbooks) {
+    for (const nr of wb.namedRanges) {
+      namedRangeMap.set(`${wb.name}::${nr.name}`, { scope: nr.scope, scopeSheet: nr.scopeSheet });
+    }
+    for (const tbl of wb.tables) {
+      if (tbl.columns && tbl.columns.length > 0) {
+        tableColumnsMap.set(`${wb.name}::${tbl.name}`, tbl.columns);
+      }
+    }
+  }
+
   // Pass 1 — register all uploaded sheet nodes
   for (const wb of visibleWorkbooks) {
     for (const sheet of wb.sheets) {
@@ -155,7 +172,8 @@ export function buildGraph(
         if (showNamedRanges && ref.namedRangeName) {
           const nrId = `[nr]${wb.name}::${ref.namedRangeName}`;
           if (!nodesMap.has(nrId)) {
-            nodesMap.set(nrId, makeNamedRangeNode(nrId, wb.name, ref.namedRangeName, ref.cells.join(', '), ref.targetSheet));
+            const nrMeta = namedRangeMap.get(`${wb.name}::${ref.namedRangeName}`);
+            nodesMap.set(nrId, makeNamedRangeNode(nrId, wb.name, ref.namedRangeName, ref.cells.join(', '), ref.targetSheet, nrMeta?.scope, nrMeta?.scopeSheet));
           }
           // Edge 1: data source → NR node (named-range kind)
           const eid1 = edgeId(dataSourceId, nrId);
@@ -178,7 +196,8 @@ export function buildGraph(
           // Table: when toggle is ON, create intermediate table node + two edges
           const tableId = `[table]${wb.name}::${ref.tableName}`;
           if (!nodesMap.has(tableId)) {
-            nodesMap.set(tableId, makeTableNode(tableId, wb.name, ref.tableName, ref.cells.join(', '), ref.targetSheet));
+            const cols = tableColumnsMap.get(`${wb.name}::${ref.tableName}`);
+            nodesMap.set(tableId, makeTableNode(tableId, wb.name, ref.tableName, ref.cells.join(', '), ref.targetSheet, cols));
           }
           // Edge 1: data source → table node (table kind)
           const eid1 = edgeId(dataSourceId, tableId);
@@ -755,7 +774,7 @@ function makeFileNode(id: string, workbookName: string): Node<NodeData> {
   };
 }
 
-function makeNamedRangeNode(id: string, workbookName: string, name: string, cells: string, targetSheet: string): Node<NodeData> {
+function makeNamedRangeNode(id: string, workbookName: string, name: string, cells: string, targetSheet: string, scope?: 'workbook' | 'sheet', scopeSheet?: string): Node<NodeData> {
   return {
     id,
     type: 'sheet',
@@ -769,6 +788,8 @@ function makeNamedRangeNode(id: string, workbookName: string, name: string, cell
       isNamedRange: true,
       namedRangeName: name,
       namedRangeRef: `${targetSheet}!${cells}`,
+      namedRangeScope: scope,
+      namedRangeScopeSheet: scopeSheet,
       isTable: false,
       outgoingCount: 0,
       incomingCount: 0,
@@ -777,7 +798,7 @@ function makeNamedRangeNode(id: string, workbookName: string, name: string, cell
   };
 }
 
-function makeTableNode(id: string, workbookName: string, tableName: string, cells: string, targetSheet: string): Node<NodeData> {
+function makeTableNode(id: string, workbookName: string, tableName: string, cells: string, targetSheet: string, columns?: string[]): Node<NodeData> {
   return {
     id,
     type: 'sheet',
@@ -792,6 +813,7 @@ function makeTableNode(id: string, workbookName: string, tableName: string, cell
       isTable: true,
       tableName,
       tableRef: `${targetSheet}!${cells}`,
+      tableColumns: columns,
       outgoingCount: 0,
       incomingCount: 0,
       workload: null,

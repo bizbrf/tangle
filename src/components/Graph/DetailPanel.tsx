@@ -31,6 +31,24 @@ export function DetailPanel({ selectedNodes, selectedEdge, onClose, onFocus, foc
     return counts;
   }, [node, allEdges]);
 
+  // Compute connected sheets for named range / table nodes
+  const connectedSheets = useMemo(() => {
+    if (!node || (!node.data.isNamedRange && !node.data.isTable)) return null;
+    const incoming: string[] = [];
+    const outgoing: string[] = [];
+    for (const edge of allEdges) {
+      if (edge.target === node.id && edge.source !== node.id) {
+        const label = edge.source.replace(/^\[(?:nr|table)\]/, '').replace(/::/g, ' › ');
+        if (!incoming.includes(label)) incoming.push(label);
+      }
+      if (edge.source === node.id && edge.target !== node.id) {
+        const label = edge.target.replace(/^\[(?:nr|table)\]/, '').replace(/::/g, ' › ');
+        if (!outgoing.includes(label)) outgoing.push(label);
+      }
+    }
+    return { incoming, outgoing };
+  }, [node, allEdges]);
+
   if (selectedNodes.length === 0 && !selectedEdge) return null;
   const isMulti = selectedNodes.length > 1;
 
@@ -149,6 +167,114 @@ export function DetailPanel({ selectedNodes, selectedEdge, onClose, onFocus, foc
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 6h.008v.008H6V6z" />
                 </svg>
                 <span style={{ fontFamily: 'monospace', fontSize: 11 }}>{node.data.namedRangeRef}</span>
+              </div>
+            )}
+
+            {/* Named range enhanced details */}
+            {node.data.isNamedRange && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {/* Scope indicator */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, color: C.textMuted }}>
+                  <span style={{
+                    background: `${C.emerald}15`, border: `1px solid ${C.emerald}33`,
+                    borderRadius: 4, padding: '2px 6px', fontSize: 10, fontWeight: 600, color: C.emerald,
+                  }}>
+                    {node.data.namedRangeScope === 'sheet' ? 'Sheet-scoped' : 'Workbook-scoped'}
+                  </span>
+                  {node.data.namedRangeScope === 'sheet' && node.data.namedRangeScopeSheet && (
+                    <span style={{ fontFamily: 'monospace', fontSize: 10, color: C.textSecondary }}>
+                      {node.data.namedRangeScopeSheet}
+                    </span>
+                  )}
+                </div>
+                {/* Address breakdown */}
+                {node.data.namedRangeRef && (() => {
+                  const bangIdx = node.data.namedRangeRef!.indexOf('!');
+                  const sheet = bangIdx >= 0 ? node.data.namedRangeRef!.slice(0, bangIdx) : undefined;
+                  const range = bangIdx >= 0 ? node.data.namedRangeRef!.slice(bangIdx + 1) : node.data.namedRangeRef!;
+                  return (
+                    <div style={{ display: 'flex', gap: 6, fontSize: 10, color: C.textMuted }}>
+                      {sheet && (
+                        <span>Sheet: <span style={{ fontFamily: 'monospace', color: C.textSecondary }}>{sheet}</span></span>
+                      )}
+                      <span>Range: <span style={{ fontFamily: 'monospace', color: C.textSecondary }}>{range}</span></span>
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
+
+            {/* Table enhanced details */}
+            {node.data.isTable && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {/* Table reference */}
+                {node.data.tableRef && (
+                  <div style={{
+                    background: `${C.violet}0a`, border: `1px solid ${C.violet}33`,
+                    borderRadius: 8, padding: '8px 10px',
+                    fontSize: 11, color: C.violet,
+                    display: 'flex', alignItems: 'center', gap: 7,
+                  }}>
+                    <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M3.375 19.5h17.25m-17.25 0a1.125 1.125 0 01-1.125-1.125M3.375 19.5h7.5c.621 0 1.125-.504 1.125-1.125m-9.75 0V5.625m0 12.75v-1.5c0-.621.504-1.125 1.125-1.125m18.375 2.625V5.625m0 12.75c0 .621-.504 1.125-1.125 1.125m1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125m0 3.75h-7.5A1.125 1.125 0 0112 18.375m9.75-12.75c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125m19.5 0v1.5c0 .621-.504 1.125-1.125 1.125M2.25 5.625v1.5c0 .621.504 1.125 1.125 1.125m0 0h17.25m-17.25 0h7.5c.621 0 1.125.504 1.125 1.125M3.375 8.25c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125m17.25-3.75h-7.5c-.621 0-1.125.504-1.125 1.125m8.625-1.125c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125m-17.25 0h7.5m-7.5 0c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125M12 10.875v-1.5m0 1.5c0 .621-.504 1.125-1.125 1.125M12 10.875c0 .621.504 1.125 1.125 1.125m-2.25 0c.621 0 1.125.504 1.125 1.125M10.875 12h-7.5c-.621 0-1.125.504-1.125 1.125" />
+                    </svg>
+                    <span style={{ fontFamily: 'monospace', fontSize: 11 }}>{node.data.tableRef}</span>
+                  </div>
+                )}
+                {/* Data range breakdown */}
+                {node.data.tableRef && (() => {
+                  const bangIdx = node.data.tableRef!.indexOf('!');
+                  const sheet = bangIdx >= 0 ? node.data.tableRef!.slice(0, bangIdx) : undefined;
+                  const range = bangIdx >= 0 ? node.data.tableRef!.slice(bangIdx + 1) : node.data.tableRef!;
+                  return (
+                    <div style={{ display: 'flex', gap: 6, fontSize: 10, color: C.textMuted }}>
+                      {sheet && (
+                        <span>Sheet: <span style={{ fontFamily: 'monospace', color: C.textSecondary }}>{sheet}</span></span>
+                      )}
+                      <span>Range: <span style={{ fontFamily: 'monospace', color: C.textSecondary }}>{range}</span></span>
+                    </div>
+                  );
+                })()}
+                {/* Columns list */}
+                {node.data.tableColumns && node.data.tableColumns.length > 0 && (
+                  <>
+                    <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: C.textMuted }}>
+                      Columns ({node.data.tableColumns.length})
+                    </div>
+                    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                      {node.data.tableColumns.map((col: string) => (
+                        <span key={col} style={{
+                          background: `${C.violet}15`, border: `1px solid ${C.violet}33`,
+                          borderRadius: 4, padding: '2px 6px',
+                          fontSize: 10, fontFamily: 'monospace', color: C.violet,
+                        }}>
+                          {col}
+                        </span>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* Connected sheets for named range / table nodes */}
+            {connectedSheets && (connectedSheets.incoming.length > 0 || connectedSheets.outgoing.length > 0) && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: C.textMuted }}>
+                  Connected sheets
+                </div>
+                {connectedSheets.incoming.length > 0 && (
+                  <div style={{ fontSize: 10, color: C.textMuted }}>
+                    <span style={{ fontWeight: 600 }}>From: </span>
+                    <span style={{ color: C.textSecondary }}>{connectedSheets.incoming.join(', ')}</span>
+                  </div>
+                )}
+                {connectedSheets.outgoing.length > 0 && (
+                  <div style={{ fontSize: 10, color: C.textMuted }}>
+                    <span style={{ fontWeight: 600 }}>To: </span>
+                    <span style={{ color: C.textSecondary }}>{connectedSheets.outgoing.join(', ')}</span>
+                  </div>
+                )}
               </div>
             )}
 

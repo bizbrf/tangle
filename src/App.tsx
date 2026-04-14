@@ -1,13 +1,41 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { FilePanel } from './components/FilePanel/FilePanel';
 import { GraphView } from './components/Graph/GraphView';
 import { TangleLogo } from './components/ui/TangleLogo';
+import { saveFile, loadAllFiles, removeFile, clearAllFiles } from './lib/storage';
+import { parseWorkbookFromBuffer } from './lib/parser';
+import { resolveImportedWorkbooks } from './components/FilePanel/importUtils';
 import type { WorkbookFile } from './types';
 
 export default function App() {
   const [workbooks, setWorkbooks] = useState<WorkbookFile[]>([]);
   const [highlightedFile, setHighlightedFile] = useState<string | null>(null);
   const [hiddenFiles, setHiddenFiles] = useState<Set<string>>(new Set());
+  const [restoredCount, setRestoredCount] = useState(0);
+  const restoringRef = useRef(false);
+
+  // Restore files from IndexedDB on mount
+  useEffect(() => {
+    let cancelled = false;
+    async function restore() {
+      if (restoringRef.current) return;
+      restoringRef.current = true;
+      try {
+        const stored = await loadAllFiles();
+        if (cancelled || stored.length === 0) return;
+        const parsed = stored.map((sf) =>
+          parseWorkbookFromBuffer(sf.data, sf.name, sf.id),
+        );
+        const { workbooks: resolved } = resolveImportedWorkbooks([], parsed);
+        setWorkbooks(resolved);
+        setRestoredCount(resolved.length);
+      } catch {
+        // Graceful — just start empty
+      }
+    }
+    restore();
+    return () => { cancelled = true; };
+  }, []);
 
   const handleWorkbooksChange = useCallback((next: WorkbookFile[]) => {
     setWorkbooks((prev) => {
@@ -20,8 +48,24 @@ export default function App() {
           return copy;
         });
       }
+      // Remove deleted files from IndexedDB
+      const nextIds = new Set(next.map((wb) => wb.id));
+      const removedIds = prev.filter((wb) => !nextIds.has(wb.id)).map((wb) => wb.id);
+      for (const id of removedIds) {
+        removeFile(id);
+      }
       return next;
     });
+  }, []);
+
+  const handleFileSaved = useCallback((id: string, name: string, data: ArrayBuffer) => {
+    saveFile(id, name, data);
+  }, []);
+
+  const handleClearAll = useCallback(() => {
+    clearAllFiles();
+    setWorkbooks([]);
+    setHiddenFiles(new Set());
   }, []);
 
   const handleLocateFile = useCallback((workbookName: string) => {
@@ -62,6 +106,10 @@ export default function App() {
             onLocateFile={handleLocateFile}
             hiddenFiles={hiddenFiles}
             onToggleHidden={handleToggleHidden}
+            onFileSaved={handleFileSaved}
+            onClearAll={handleClearAll}
+            restoredCount={restoredCount}
+            onRestoredDismiss={() => setRestoredCount(0)}
           />
         </div>
       </div>

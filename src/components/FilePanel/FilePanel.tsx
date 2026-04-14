@@ -1,6 +1,6 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import type { WorkbookFile } from '../../types';
-import { parseWorkbook, EXCEL_EXTENSIONS } from '../../lib/parser';
+import { parseWorkbookFromBuffer, EXCEL_EXTENSIONS } from '../../lib/parser';
 import { formatDuplicateImportNotice, resolveImportedWorkbooks } from './importUtils';
 
 interface FilePanelProps {
@@ -9,6 +9,10 @@ interface FilePanelProps {
   onLocateFile?: (workbookName: string) => void;
   hiddenFiles?: Set<string>;
   onToggleHidden?: (workbookName: string) => void;
+  onFileSaved?: (id: string, name: string, data: ArrayBuffer) => void;
+  onClearAll?: () => void;
+  restoredCount?: number;
+  onRestoredDismiss?: () => void;
 }
 
 // ── Icon helpers ──────────────────────────────────────────────────────────────
@@ -82,12 +86,31 @@ function IconEye({ hidden }: { hidden: boolean }) {
   );
 }
 
-export function FilePanel({ workbooks, onWorkbooksChange, onLocateFile, hiddenFiles, onToggleHidden }: FilePanelProps) {
+export function FilePanel({ workbooks, onWorkbooksChange, onLocateFile, hiddenFiles, onToggleHidden, onFileSaved, onClearAll, restoredCount, onRestoredDismiss }: FilePanelProps) {
   const [dragging, setDragging] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Auto-dismiss the restored banner after 4 seconds
+  useEffect(() => {
+    if (!restoredCount || restoredCount <= 0) return;
+    const timer = setTimeout(() => {
+      onRestoredDismiss?.();
+    }, 4000);
+    return () => clearTimeout(timer);
+  }, [restoredCount, onRestoredDismiss]);
+
+  /** Read a File as ArrayBuffer. */
+  function readFileAsBuffer(file: File): Promise<ArrayBuffer> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as ArrayBuffer);
+      reader.onerror = () => reject(new Error(`Failed to read ${file.name}`));
+      reader.readAsArrayBuffer(file);
+    });
+  }
 
   async function handleFiles(files: FileList | null) {
     if (!files || files.length === 0) return;
@@ -101,8 +124,9 @@ export function FilePanel({ workbooks, onWorkbooksChange, onLocateFile, hiddenFi
       return;
     }
     try {
-      const parsed = await Promise.all(
-        excelFiles.map((f) => parseWorkbook(f, crypto.randomUUID())),
+      const buffers = await Promise.all(excelFiles.map((f) => readFileAsBuffer(f)));
+      const parsed = excelFiles.map((f, i) =>
+        parseWorkbookFromBuffer(buffers[i], f.name, crypto.randomUUID()),
       );
       const { workbooks: resolved, duplicateOriginalNames } = resolveImportedWorkbooks(workbooks, parsed);
       onWorkbooksChange([...workbooks, ...resolved]);
@@ -112,6 +136,12 @@ export function FilePanel({ workbooks, onWorkbooksChange, onLocateFile, hiddenFi
         resolved.forEach((wb) => next.add(wb.id));
         return next;
       });
+      // Save raw buffers to IndexedDB
+      if (onFileSaved) {
+        for (let i = 0; i < resolved.length; i++) {
+          onFileSaved(resolved[i].id, excelFiles[i].name, buffers[i]);
+        }
+      }
     } catch {
       setNotice(null);
       setError('Failed to parse one or more files.');
@@ -222,6 +252,13 @@ export function FilePanel({ workbooks, onWorkbooksChange, onLocateFile, hiddenFi
         </p>
       )}
 
+      {restoredCount != null && restoredCount > 0 && (
+        <p data-testid="restored-notice" className="mx-3 mb-2 text-xs px-2 py-1.5 rounded-lg transition-opacity duration-500"
+          style={{ color: '#34d399', background: 'rgba(52,211,153,0.1)', border: '1px solid rgba(52,211,153,0.25)' }}>
+          {restoredCount} {restoredCount === 1 ? 'file' : 'files'} restored from last session
+        </p>
+      )}
+
       {/* Divider + label */}
       {workbooks.length > 0 && (
         <div className="flex items-center gap-2 px-4 mb-1">
@@ -229,6 +266,19 @@ export function FilePanel({ workbooks, onWorkbooksChange, onLocateFile, hiddenFi
             Files
           </span>
           <div className="flex-1 h-px" style={{ background: '#1e2535' }} />
+          {onClearAll && (
+            <button
+              data-testid="clear-all-files"
+              className="text-[10px] font-semibold transition-colors duration-150"
+              style={{ color: '#3d4a5c' }}
+              onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.color = '#e8445a')}
+              onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.color = '#3d4a5c')}
+              onClick={onClearAll}
+              title="Clear all saved files"
+            >
+              Clear all
+            </button>
+          )}
           <span className="text-[10px] font-semibold" style={{ color: '#3d4a5c' }}>
             {workbooks.length}
           </span>

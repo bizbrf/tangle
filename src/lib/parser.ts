@@ -577,29 +577,8 @@ export function parseWorkbook(file: File, fileId: string): Promise<WorkbookFile>
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
-        const data = e.target?.result;
-        // Use ArrayBuffer + bookFiles to access raw zip entries for external link resolution
-        const wb = XLSX.read(data, { type: 'array', cellFormula: true, bookFiles: true });
-        const linkMap = buildExternalLinkMap(wb);
-        const namedRanges = extractNamedRanges(wb);
-        // Build lookup map: lowercase name → NamedRange
-        const namedRangeMap = new Map<string, NamedRange>();
-        for (const nr of namedRanges) {
-          namedRangeMap.set(nr.name.toLowerCase(), nr);
-        }
-        const tables = extractTables(wb);
-        // Build lookup map: lowercase name → ExcelTable
-        const tableMap = new Map<string, ExcelTable>();
-        for (const t of tables) {
-          tableMap.set(t.name.toLowerCase(), t);
-        }
-        const sheets: ParsedSheet[] = wb.SheetNames.map((sheetName) => {
-          const { references, workload } = extractReferences(wb.Sheets[sheetName], sheetName, file.name, linkMap, namedRangeMap, tableMap);
-          return { workbookName: file.name, sheetName, references, workload };
-        });
-        const originalName = file.name;
-        const storageName = sanitizeFilename(originalName);
-        resolve({ id: fileId, name: originalName, storageName, originalName, sheets, namedRanges, tables });
+        const data = e.target?.result as ArrayBuffer;
+        resolve(parseWorkbookFromBuffer(data, file.name, fileId));
       } catch (err) {
         reject(err);
       }
@@ -607,4 +586,32 @@ export function parseWorkbook(file: File, fileId: string): Promise<WorkbookFile>
     reader.onerror = () => reject(new Error(`Failed to read ${file.name}`));
     reader.readAsArrayBuffer(file);
   });
+}
+
+/**
+ * Parse a workbook from a raw ArrayBuffer.
+ * Used both by the File-based parseWorkbook and for restoring files from IndexedDB.
+ */
+export function parseWorkbookFromBuffer(data: ArrayBuffer, fileName: string, fileId: string): WorkbookFile {
+  const wb = XLSX.read(data, { type: 'array', cellFormula: true, bookFiles: true });
+  const linkMap = buildExternalLinkMap(wb);
+  const namedRanges = extractNamedRanges(wb);
+  // Build lookup map: lowercase name → NamedRange
+  const namedRangeMap = new Map<string, NamedRange>();
+  for (const nr of namedRanges) {
+    namedRangeMap.set(nr.name.toLowerCase(), nr);
+  }
+  const tables = extractTables(wb);
+  // Build lookup map: lowercase name → ExcelTable
+  const tableMap = new Map<string, ExcelTable>();
+  for (const t of tables) {
+    tableMap.set(t.name.toLowerCase(), t);
+  }
+  const sheets: ParsedSheet[] = wb.SheetNames.map((sheetName) => {
+    const { references, workload } = extractReferences(wb.Sheets[sheetName], sheetName, fileName, linkMap, namedRangeMap, tableMap);
+    return { workbookName: fileName, sheetName, references, workload };
+  });
+  const originalName = fileName;
+  const storageName = sanitizeFilename(originalName);
+  return { id: fileId, name: originalName, storageName, originalName, sheets, namedRanges, tables };
 }

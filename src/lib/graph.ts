@@ -1308,14 +1308,17 @@ export function radialLayout(
       .map((node) => node.id);
 
   const levels = new Map<string, number>();
+  const visited = new Set<string>();
   const queue = traversalStarts.map((id) => ({ id, level: 0 }));
   while (queue.length > 0) {
     const current = queue.shift()!;
-    const bestLevel = levels.get(current.id);
-    if (bestLevel !== undefined && bestLevel >= current.level) continue;
+    if (visited.has(current.id)) continue;
+    visited.add(current.id);
     levels.set(current.id, current.level);
     for (const next of adjacency.get(current.id) ?? []) {
-      queue.push({ id: next, level: current.level + 1 });
+      if (!visited.has(next)) {
+        queue.push({ id: next, level: current.level + 1 });
+      }
     }
   }
   for (const node of nodes) {

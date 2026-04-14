@@ -266,7 +266,6 @@ function makeReserveModel(): void {
   const ldSummary = XLSX.utils.aoa_to_sheet([['LOB', '12-24 LDF', '24-36 LDF', '36-48 LDF', '48-60 LDF', 'Tail', 'CDF to Ult']])
   for (let i = 0; i < LOBS.length; i++) {
     const row = i + 2
-    const lobShort = LOBS[i].replace(/ /g, '')
     V(ldSummary, `A${row}`, LOBS[i])
     const dfSheet = `'DF ${LOBS[i]}'`
     F(ldSummary, `B${row}`, `${dfSheet}!C2`)
@@ -805,13 +804,6 @@ function makeFinancialProjection(): void {
 
   // ── Key Metrics Dashboard ──────────────────────────────────────────
   const dash = XLSX.utils.aoa_to_sheet([['Metric', 'Value', 'Target', 'Status']])
-  const metrics = [
-    ['Combined Ratio', "'Consolidated P&L'", 'ratioStart+2', 0.95],
-    ['RBC Ratio', null, null, 3.0],
-    ['Surplus', "'Balance Sheet'", '16', null],
-    ['Loss Reserve', "'Balance Sheet'", '10', null],
-    ['Investment Yield', "'Investment Portfolio'", `D${invTot}`, 0.04],
-  ]
   for (let i = 0; i < 5; i++) {
     const row = i + 2
     V(dash, `A${row}`, ['Combined Ratio', 'RBC Ratio', 'Surplus', 'Loss Reserve', 'Investment Yield'][i])

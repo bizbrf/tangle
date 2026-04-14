@@ -12,11 +12,11 @@ const CELL_RE = '(?:\\$?[A-Z]+\\$?\\d+(?::\\$?[A-Z]+\\$?\\d+)?|\\$?[A-Z]+:\\$?[A
 const UNQUOTED_SHEET = '[A-Za-z0-9_\\u00C0-\\u024F][\\w. ]*';
 // Full reference regex with cell capture
 const REF_WITH_CELL_RE = new RegExp(
-  `(?:'(?:\\[([^\\]]+)\\])?([^']+)'|(?:\\[([^\\]]+)\\])?(${UNQUOTED_SHEET}))!(${CELL_RE})`,
+  `(?:'(?:\\[([^\\]]+)\\])?([^']*(?:''[^']*)*)'|(?:\\[([^\\]]+)\\])?(${UNQUOTED_SHEET}))!(${CELL_RE})`,
   'g',
 );
 const MALFORMED_EXT_QUOTED_RE = new RegExp(
-  `\\[([^\\]]+)\\]'([^']+)'!(${CELL_RE})`,
+  `\\[([^\\]]+)\\]'([^']*(?:''[^']*)*)'!(${CELL_RE})`,
   'g',
 );
 
@@ -24,7 +24,7 @@ const MALFORMED_EXT_QUOTED_RE = new RegExp(
 // Captures: [1] startSheet quoted, [2] endSheet quoted, [3] startSheet unquoted,
 //           [4] endSheet unquoted, [5] cell range
 const REF_3D_RE = new RegExp(
-  `(?:'([^']+)':'([^']+)'|(${UNQUOTED_SHEET}):(${UNQUOTED_SHEET}))!(${CELL_RE})`,
+  `(?:'([^']*(?:''[^']*)*)':'([^']*(?:''[^']*)*)'|(${UNQUOTED_SHEET}):(${UNQUOTED_SHEET}))!(${CELL_RE})`,
   'g',
 );
 
@@ -34,7 +34,7 @@ const STRUCTURED_REF_RE = /\b([A-Za-z_\u00C0-\u024F][A-Za-z0-9_\u00C0-\u024F]*)\
 
 // Spill reference suffix: detects # after cell references (A1#, Sheet1!B2#)
 const SPILL_SUFFIX_RE = new RegExp(
-  `(?:(?:'(?:\\[([^\\]]+)\\])?([^']+)'|(?:\\[([^\\]]+)\\])?(${UNQUOTED_SHEET}))!)?(${CELL_RE})#`,
+  `(?:(?:'(?:\\[([^\\]]+)\\])?([^']*(?:''[^']*)*)'|(?:\\[([^\\]]+)\\])?(${UNQUOTED_SHEET}))!)?(${CELL_RE})#`,
   'g',
 );
 
@@ -193,6 +193,15 @@ export function extractTables(wb: XLSX.WorkBook): ExcelTable[] {
   return tables;
 }
 
+// ── String literal masking ──────────────────────────────────────────────────
+// Replace content inside "..." with spaces so regex passes don't match
+// ref-like patterns inside string literals. Preserves string length to keep
+// index positions stable. Excel uses "" for literal quote inside strings,
+// so we greedily consume non-quote chars and "" pairs.
+export function maskStringLiterals(formula: string): string {
+  return formula.replace(/"(?:[^"]|"")*"/g, (match) => '"' + ' '.repeat(match.length - 2) + '"');
+}
+
 // ── Reference extraction ────────────────────────────────────────────────────
 
 export function extractReferences(
@@ -210,14 +219,14 @@ export function extractReferences(
   const selfSheet = sheetName.toLowerCase();
   const selfWb = workbookName.toLowerCase().replace(EXCEL_EXT_RE, '');
 
-  // Build a single combined regex for all named range names: \b(Name1|Name2|...)\b(?!\()
-  // The (?!\() avoids matching function calls like SUM()
+  // Build a single combined regex for all named range names: \b(Name1|Name2|...)\b(?![!(])
+  // The (?![!(]) avoids matching function calls like SUM() and sheet refs like Sheet2!A1
   let namedRangeRe: RegExp | null = null;
   if (namedRangeMap.size > 0) {
     const escaped = Array.from(namedRangeMap.values()).map((nr) =>
       nr.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'),
     );
-    namedRangeRe = new RegExp(`\\b(${escaped.join('|')})\\b(?!\\()`, 'gi');
+    namedRangeRe = new RegExp(`\\b(${escaped.join('|')})\\b(?![!(])`, 'gi');
   }
 
   // Build a regex for Excel table names: TableName[ means structured reference like TableName[Column]
@@ -236,6 +245,9 @@ export function extractReferences(
     const formula: string | undefined = (cell as XLSX.CellObject).f;
     if (!formula) continue;
     const formulaText = formula;
+    // Mask string literals so regex passes don't produce false-positive refs
+    // from ref-like patterns inside "..." segments. Keep original for display.
+    const maskedFormula = maskStringLiterals(formula);
 
     workload.totalFormulas++;
 
@@ -278,9 +290,9 @@ export function extractReferences(
       byTarget.get(key)!.cells.push(cellRange);
     }
 
-    while ((match = REF_WITH_CELL_RE.exec(formula)) !== null) {
+    while ((match = REF_WITH_CELL_RE.exec(maskedFormula)) !== null) {
       const [, wbQuoted, sheetQuoted, wbUnquoted, sheetUnquoted, cellRange] = match;
-      if (!wbQuoted && sheetQuoted && match.index > 0 && formula[match.index - 1] === ']') {
+      if (!wbQuoted && sheetQuoted && match.index > 0 && maskedFormula[match.index - 1] === ']') {
         continue;
       }
       addFormulaReference(
@@ -291,7 +303,7 @@ export function extractReferences(
     }
 
     MALFORMED_EXT_QUOTED_RE.lastIndex = 0;
-    while ((match = MALFORMED_EXT_QUOTED_RE.exec(formula)) !== null) {
+    while ((match = MALFORMED_EXT_QUOTED_RE.exec(maskedFormula)) !== null) {
       const [, wbMalformed, sheetMalformed, cellRange] = match;
       addFormulaReference(wbMalformed, unescapeQuotedSheetName(sheetMalformed), cellRange);
     }
@@ -300,7 +312,7 @@ export function extractReferences(
     if (namedRangeRe) {
       namedRangeRe.lastIndex = 0;
       let nrMatch: RegExpExecArray | null;
-      while ((nrMatch = namedRangeRe.exec(formula)) !== null) {
+      while ((nrMatch = namedRangeRe.exec(maskedFormula)) !== null) {
         const matchedName = nrMatch[0];
         const nr = namedRangeMap.get(matchedName.toLowerCase());
         if (!nr) continue;
@@ -327,7 +339,7 @@ export function extractReferences(
     if (tableRe) {
       tableRe.lastIndex = 0;
       let tMatch: RegExpExecArray | null;
-      while ((tMatch = tableRe.exec(formula)) !== null) {
+      while ((tMatch = tableRe.exec(maskedFormula)) !== null) {
         const matchedName = tMatch[1] ?? tMatch[0].replace(/\[$/, '');
         const table = tableMap.get(matchedName.toLowerCase());
         if (!table) continue;
@@ -354,7 +366,7 @@ export function extractReferences(
     // These are used inside table formulas to reference the current row's column value.
     {
       const relRe = /\[@([^\]]+)\]/g;
-      while (relRe.exec(formula) !== null) {
+      while (relRe.exec(maskedFormula) !== null) {
         workload.withinSheetRefs++;
       }
     }
@@ -364,7 +376,7 @@ export function extractReferences(
     if (tableMap.size > 0) {
       const queryResultRe = /\b([A-Za-z_\u00C0-\u024F][A-Za-z0-9_\u00C0-\u024F]*)\.Result\[([^\]]*)\]/g;
       let qMatch: RegExpExecArray | null;
-      while ((qMatch = queryResultRe.exec(formula)) !== null) {
+      while ((qMatch = queryResultRe.exec(maskedFormula)) !== null) {
         const queryName = qMatch[1];
         const normName = queryName.toLowerCase();
         const table = tableMap.get(normName);
@@ -393,7 +405,7 @@ export function extractReferences(
     {
       REF_3D_RE.lastIndex = 0;
       let m3d: RegExpExecArray | null;
-      while ((m3d = REF_3D_RE.exec(formula)) !== null) {
+      while ((m3d = REF_3D_RE.exec(maskedFormula)) !== null) {
         const [, startQuoted, endQuoted, startUnquoted, endUnquoted, cellRange] = m3d;
         const startSheet = startQuoted ? unescapeQuotedSheetName(startQuoted) : startUnquoted;
         const endSheet = endQuoted ? unescapeQuotedSheetName(endQuoted) : endUnquoted;
@@ -427,7 +439,7 @@ export function extractReferences(
     {
       SPILL_SUFFIX_RE.lastIndex = 0;
       let sMatch: RegExpExecArray | null;
-      while ((sMatch = SPILL_SUFFIX_RE.exec(formula)) !== null) {
+      while ((sMatch = SPILL_SUFFIX_RE.exec(maskedFormula)) !== null) {
         const [, wbQuotedS, sheetQuotedS, wbUnquotedS, sheetUnquotedS, cellRangeS] = sMatch;
         let targetWorkbookS = wbQuotedS ?? wbUnquotedS ?? null;
         const targetSheetS = sheetQuotedS ? unescapeQuotedSheetName(sheetQuotedS) : sheetUnquotedS ?? null;
@@ -492,7 +504,7 @@ export function extractReferences(
     if (tableMap.size > 0) {
       STRUCTURED_REF_RE.lastIndex = 0;
       let srMatch: RegExpExecArray | null;
-      while ((srMatch = STRUCTURED_REF_RE.exec(formula)) !== null) {
+      while ((srMatch = STRUCTURED_REF_RE.exec(maskedFormula)) !== null) {
         const [rawRef, tableName, innerContent] = srMatch;
         const table = tableMap.get(tableName.toLowerCase());
         if (!table) continue;

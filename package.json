@@ -2,7 +2,29 @@
   "name": "tangle",
   "private": true,
   "version": "1.2.0",
+  "description": "Visualize references within and between Excel files as an interactive node graph",
   "type": "module",
+  "author": "Chase Stoker",
+  "license": "MIT",
+  "keywords": [
+    "excel",
+    "xlsx",
+    "graph",
+    "visualization",
+    "react",
+    "react-flow",
+    "tauri",
+    "spreadsheet",
+    "reference-tracker"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/bizbrf/tangle.git"
+  },
+  "homepage": "https://bizbrf.github.io/tangle",
+  "bugs": {
+    "url": "https://github.com/bizbrf/tangle/issues"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",

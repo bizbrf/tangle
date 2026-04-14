@@ -24,6 +24,7 @@ import { toPng } from 'html-to-image';
 import type { WorkbookFile } from '../../types';
 import { applyLayoutAlgorithm, buildGraph, type NodeData, type EdgeData, type LayoutMode, type LayoutDirection, type LayoutAlgorithm } from '../../lib/graph';
 import { buildDependencyGraph, detectCycles } from '../../lib/resolver';
+import { findAllPaths, type PathResult } from '../../lib/pathfinder';
 import { C } from './constants';
 import { edgeStrokeWidth, edgeAccentColor, edgeRestColor } from './edge-helpers';
 import { WeightedEdge } from './WeightedEdge';
@@ -118,6 +119,7 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
   const [searchQuery, setSearchQuery] = useState('');
   const searchInputRef = useRef<HTMLInputElement>(null);
   const [selectedCycleIndex, setSelectedCycleIndex] = useState<number | null>(null);
+  const [pathResult, setPathResult] = useState<PathResult | null>(null);
   const [statsOpen, setStatsOpen] = useState(false);
   const { fitView } = useReactFlow();
   const highlightTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -200,6 +202,60 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
     });
   }, [setEdges, setNodes]);
 
+  // ── Path finding handlers ────────────────────────────────────────────────────
+  const handleShowPaths = useCallback(() => {
+    if (selectedNodes.length !== 2) return;
+    const result = findAllPaths(selectedNodes[0].id, selectedNodes[1].id, edges, 5);
+    setPathResult(result.pathNodeIds.size > 0 ? result : null);
+  }, [selectedNodes, edges]);
+
+  const handleClearPaths = useCallback(() => {
+    setPathResult(null);
+  }, []);
+
+  // Navigate to a node from the detail panel: select it, pan to it, update detail panel
+  const handleNavigateToNode = useCallback((nodeId: string) => {
+    const targetNode = nodes.find((n) => n.id === nodeId);
+    if (!targetNode) return;
+
+    // Select the target node (deselect everything else)
+    setNodes((current) =>
+      current.map((n) => ({
+        ...n,
+        selected: n.id === nodeId,
+      })),
+    );
+    setEdges((current) =>
+      current.map((e) => ({ ...e, selected: false })),
+    );
+    setSelectedNodes([targetNode]);
+    setSelectedNodeIds(new Set([nodeId]));
+    setSelectedEdge(null);
+
+    // Pan to the node
+    requestAnimationFrame(() => {
+      fitView({ nodes: [{ id: nodeId }], padding: 0.5, duration: 400 });
+    });
+  }, [nodes, setNodes, setEdges, fitView]);
+
+  // Clear paths when selection changes
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setPathResult(null);
+  }, [selectedNodeIds]);
+
+  // Clear paths on Escape key
+  useEffect(() => {
+    if (!pathResult) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') {
+        setPathResult(null);
+      }
+    }
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [pathResult]);
+
   useEffect(() => {
     const { nodes: n, edges: e } = buildGraph(
       workbooks, layoutMode, hiddenFiles, showNamedRanges, showTables, layoutDirection,
@@ -212,6 +268,7 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
     setSelectedEdge(null);
     setSelectedNodeIds(new Set());
     setFocusNodeId(null);
+    setPathResult(null);
   }, [workbooks, layoutMode, layoutDirection, hiddenFiles, showNamedRanges, showTables, setNodes, setEdges, computeLayoutNodes, layoutAlgorithm]);
 
   useEffect(() => {
@@ -505,18 +562,20 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
       const dimmedBySearch = searchMatchIds !== null && !(searchMatchIds.has(edge.source) && searchMatchIds.has(edge.target));
       const dimmedByCycle = cycleHighlightIds !== null && !(cycleHighlightIds.has(edge.source) && cycleHighlightIds.has(edge.target));
       const inCycle = cycleHighlightIds !== null && cycleHighlightIds.has(edge.source) && cycleHighlightIds.has(edge.target);
+      const inPath = pathResult !== null && pathResult.pathEdgeIds.has(edge.id);
+      const dimmedByPath = pathResult !== null && !inPath;
 
       return {
         ...edge,
         type: 'weighted',
         style: {
-          stroke: inCycle ? C.amber : strokeColor,
-          strokeWidth: inCycle ? baseWidth + 1.5 : highlight ? baseWidth + 1 : baseWidth,
-          opacity: dimmedBySearch ? 0.06 : dimmedByCycle ? 0.06 : dimmedByFocus ? 0.04 : dimmedBySelection ? 0.12 : 1,
-          filter: inCycle ? `drop-shadow(0 0 ${baseWidth + 3}px ${C.amberGlow})` : highlight ? `drop-shadow(0 0 ${baseWidth + 2}px ${glowColor}88)` : 'none',
+          stroke: inPath ? edgeAccentColor(kind) : inCycle ? C.amber : strokeColor,
+          strokeWidth: inPath ? baseWidth + 1.5 : inCycle ? baseWidth + 1.5 : highlight ? baseWidth + 1 : baseWidth,
+          opacity: dimmedByPath ? 0.06 : dimmedBySearch ? 0.06 : dimmedByCycle ? 0.06 : dimmedByFocus ? 0.04 : dimmedBySelection ? 0.12 : 1,
+          filter: inPath ? `drop-shadow(0 0 ${baseWidth + 3}px ${glowColor}88)` : inCycle ? `drop-shadow(0 0 ${baseWidth + 3}px ${C.amberGlow})` : highlight ? `drop-shadow(0 0 ${baseWidth + 2}px ${glowColor}88)` : 'none',
           transition: 'stroke 0.2s, stroke-width 0.2s, opacity 0.2s, filter 0.2s',
         },
-        animated: highlight || inCycle,
+        animated: highlight || inCycle || inPath,
         markerEnd: {
           type: MarkerType.ArrowClosed,
           color: inCycle ? C.amber : strokeColor,
@@ -525,11 +584,11 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
         },
       };
     });
-  }, [edges, selectedNodeIds, selectedEdge, edgeKindFilter, focusNeighborIds, searchMatchIds, cycleHighlightIds]);
+  }, [edges, selectedNodeIds, selectedEdge, edgeKindFilter, focusNeighborIds, searchMatchIds, cycleHighlightIds, pathResult]);
 
-  // Apply focus + search + cycle dimming to nodes
+  // Apply focus + search + cycle + path dimming to nodes
   const styledNodes = useMemo((): Node<NodeData>[] => {
-    const needsDimming = focusNeighborIds !== null || searchMatchIds !== null || cycleHighlightIds !== null;
+    const needsDimming = focusNeighborIds !== null || searchMatchIds !== null || cycleHighlightIds !== null || pathResult !== null;
     if (!needsDimming) return nodes;
 
     return nodes.map((node) => {
@@ -539,7 +598,9 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
         : 'opacity 0.2s';
 
       let opacity = 1;
-      if (searchMatchIds !== null) {
+      if (pathResult !== null) {
+        opacity = pathResult.pathNodeIds.has(node.id) ? 1 : 0.08;
+      } else if (searchMatchIds !== null) {
         opacity = searchMatchIds.has(node.id) ? 1 : 0.08;
       } else if (cycleHighlightIds !== null) {
         opacity = cycleHighlightIds.has(node.id) ? 1 : 0.08;
@@ -556,7 +617,7 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
         },
       };
     });
-  }, [nodes, focusNeighborIds, searchMatchIds, cycleHighlightIds]);
+  }, [nodes, focusNeighborIds, searchMatchIds, cycleHighlightIds, pathResult]);
 
   const onSelectionChange = useCallback(
     ({ nodes: sNodes, edges: sEdges }: OnSelectionChangeParams) => {
@@ -573,6 +634,7 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
     clearSelection();
     setFocusNodeId(null);
     setSelectedCycleIndex(null);
+    setPathResult(null);
   }
 
   if (workbooks.length === 0) return <EmptyState />;
@@ -847,6 +909,11 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
         onToggleHidden={onToggleHidden}
         hiddenFiles={hiddenFiles}
         allEdges={edges}
+        allNodes={nodes}
+        onNavigateToNode={handleNavigateToNode}
+        pathActive={pathResult !== null}
+        onShowPaths={handleShowPaths}
+        onClearPaths={handleClearPaths}
       />
     </div>
   );

@@ -13,9 +13,24 @@ interface DetailPanelProps {
   onToggleHidden?: (workbookName: string) => void;
   hiddenFiles?: Set<string>;
   allEdges: Edge<EdgeData>[];
+  allNodes: Node<NodeData>[];
+  onNavigateToNode?: (nodeId: string) => void;
+  pathActive?: boolean;
+  onShowPaths?: () => void;
+  onClearPaths?: () => void;
 }
 
-export function DetailPanel({ selectedNodes, selectedEdge, onClose, onFocus, focusNodeId, onToggleHidden, hiddenFiles, allEdges }: DetailPanelProps) {
+/** Style for clickable sheet-name links in the detail panel */
+const navLinkStyle: React.CSSProperties = {
+  cursor: 'pointer',
+  color: C.accent,
+  textDecoration: 'underline',
+  textDecorationColor: `${C.accent}55`,
+  textUnderlineOffset: 2,
+  transition: 'color 0.15s, text-decoration-color 0.15s',
+};
+
+export function DetailPanel({ selectedNodes, selectedEdge, onClose, onFocus, focusNodeId, onToggleHidden, hiddenFiles, allEdges, allNodes, onNavigateToNode, pathActive, onShowPaths, onClearPaths }: DetailPanelProps) {
   const node = selectedNodes.length === 1 ? selectedNodes[0] : null;
 
   // Compute edge kind breakdown for single-node selection (must be before early return)
@@ -31,23 +46,40 @@ export function DetailPanel({ selectedNodes, selectedEdge, onClose, onFocus, foc
     return counts;
   }, [node, allEdges]);
 
-  // Compute connected sheets for named range / table nodes
+  // Compute connected sheets for named range / table nodes (with node IDs for navigation)
   const connectedSheets = useMemo(() => {
     if (!node || (!node.data.isNamedRange && !node.data.isTable)) return null;
-    const incoming: string[] = [];
-    const outgoing: string[] = [];
+    const incomingSeen = new Set<string>();
+    const outgoingSeen = new Set<string>();
+    const incoming: { id: string; label: string }[] = [];
+    const outgoing: { id: string; label: string }[] = [];
     for (const edge of allEdges) {
       if (edge.target === node.id && edge.source !== node.id) {
-        const label = edge.source.replace(/^\[(?:nr|table)\]/, '').replace(/::/g, ' › ');
-        if (!incoming.includes(label)) incoming.push(label);
+        if (!incomingSeen.has(edge.source)) {
+          incomingSeen.add(edge.source);
+          const label = edge.source.replace(/^\[(?:nr|table)\]/, '').replace(/::/g, ' \u203A ');
+          incoming.push({ id: edge.source, label });
+        }
       }
       if (edge.source === node.id && edge.target !== node.id) {
-        const label = edge.target.replace(/^\[(?:nr|table)\]/, '').replace(/::/g, ' › ');
-        if (!outgoing.includes(label)) outgoing.push(label);
+        if (!outgoingSeen.has(edge.target)) {
+          outgoingSeen.add(edge.target);
+          const label = edge.target.replace(/^\[(?:nr|table)\]/, '').replace(/::/g, ' \u203A ');
+          outgoing.push({ id: edge.target, label });
+        }
       }
     }
     return { incoming, outgoing };
   }, [node, allEdges]);
+
+  // Build a lookup map from node ID to display info
+  const nodeDisplayMap = useMemo(() => {
+    const map = new Map<string, { sheetName: string; workbookName: string }>();
+    for (const n of allNodes) {
+      map.set(n.id, { sheetName: n.data.sheetName, workbookName: n.data.workbookName });
+    }
+    return map;
+  }, [allNodes]);
 
   if (selectedNodes.length === 0 && !selectedEdge) return null;
   const isMulti = selectedNodes.length > 1;
@@ -117,19 +149,30 @@ export function DetailPanel({ selectedNodes, selectedEdge, onClose, onFocus, foc
         {isMulti && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {selectedNodes.map((n) => (
-              <div key={n.id} style={{
-                display: 'flex', alignItems: 'center', gap: 10,
-                background: C.surface,
-                border: `1px solid ${C.border}`,
-                borderRadius: 10, padding: '8px 10px',
-              }}>
+              <div
+                key={n.id}
+                role="link"
+                tabIndex={0}
+                onClick={() => onNavigateToNode?.(n.id)}
+                onKeyDown={(e) => { if (e.key === 'Enter') onNavigateToNode?.(n.id); }}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 10,
+                  background: C.surface,
+                  border: `1px solid ${C.border}`,
+                  borderRadius: 10, padding: '8px 10px',
+                  cursor: onNavigateToNode ? 'pointer' : 'default',
+                  transition: 'border-color 0.15s',
+                }}
+                onMouseEnter={(e) => { if (onNavigateToNode) (e.currentTarget as HTMLElement).style.borderColor = C.accent; }}
+                onMouseLeave={(e) => { if (onNavigateToNode) (e.currentTarget as HTMLElement).style.borderColor = C.border; }}
+              >
                 <div style={{
                   width: 6, height: 6, borderRadius: 99, flexShrink: 0,
                   background: n.data.isTable ? C.violet : n.data.isNamedRange ? C.emerald : n.data.isExternal ? C.amber : C.accent,
                   boxShadow: `0 0 6px ${n.data.isTable ? C.violetGlow : n.data.isNamedRange ? C.emeraldGlow : n.data.isExternal ? C.amberGlow : C.accentGlow}`,
                 }} />
                 <div style={{ minWidth: 0 }}>
-                  <div style={{ fontWeight: 600, color: C.textPrimary, fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <div style={{ fontWeight: 600, color: onNavigateToNode ? C.accent : C.textPrimary, fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {n.data.sheetName}
                   </div>
                   <div style={{ fontSize: 10, color: C.textMuted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -138,6 +181,27 @@ export function DetailPanel({ selectedNodes, selectedEdge, onClose, onFocus, foc
                 </div>
               </div>
             ))}
+            {selectedNodes.length === 2 && onShowPaths && onClearPaths && (
+              <button
+                data-testid="show-paths-btn"
+                onClick={pathActive ? onClearPaths : onShowPaths}
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                  padding: '8px 12px', borderRadius: 8, border: 'none', cursor: 'pointer',
+                  fontSize: 11, fontWeight: 600,
+                  background: pathActive ? `${C.accent}22` : C.surface,
+                  color: pathActive ? C.accent : C.textSecondary,
+                  transition: 'all 0.15s',
+                }}
+                onMouseEnter={(e) => { if (!pathActive) (e.currentTarget as HTMLElement).style.color = C.textPrimary; }}
+                onMouseLeave={(e) => { if (!pathActive) (e.currentTarget as HTMLElement).style.color = C.textSecondary; }}
+              >
+                <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                </svg>
+                {pathActive ? 'Clear Paths' : 'Show Paths'}
+              </button>
+            )}
           </div>
         )}
 
@@ -272,13 +336,43 @@ export function DetailPanel({ selectedNodes, selectedEdge, onClose, onFocus, foc
                 {connectedSheets.incoming.length > 0 && (
                   <div style={{ fontSize: 10, color: C.textMuted }}>
                     <span style={{ fontWeight: 600 }}>From: </span>
-                    <span style={{ color: C.textSecondary }}>{connectedSheets.incoming.join(', ')}</span>
+                    {connectedSheets.incoming.map((item, idx) => (
+                      <span key={item.id}>
+                        {idx > 0 && ', '}
+                        <span
+                          role="link"
+                          tabIndex={0}
+                          style={{ ...navLinkStyle, fontSize: 10 }}
+                          onClick={() => onNavigateToNode?.(item.id)}
+                          onKeyDown={(e) => { if (e.key === 'Enter') onNavigateToNode?.(item.id); }}
+                          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.textDecorationColor = C.accent; }}
+                          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.textDecorationColor = `${C.accent}55`; }}
+                        >
+                          {item.label}
+                        </span>
+                      </span>
+                    ))}
                   </div>
                 )}
                 {connectedSheets.outgoing.length > 0 && (
                   <div style={{ fontSize: 10, color: C.textMuted }}>
                     <span style={{ fontWeight: 600 }}>To: </span>
-                    <span style={{ color: C.textSecondary }}>{connectedSheets.outgoing.join(', ')}</span>
+                    {connectedSheets.outgoing.map((item, idx) => (
+                      <span key={item.id}>
+                        {idx > 0 && ', '}
+                        <span
+                          role="link"
+                          tabIndex={0}
+                          style={{ ...navLinkStyle, fontSize: 10 }}
+                          onClick={() => onNavigateToNode?.(item.id)}
+                          onKeyDown={(e) => { if (e.key === 'Enter') onNavigateToNode?.(item.id); }}
+                          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.textDecorationColor = C.accent; }}
+                          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.textDecorationColor = `${C.accent}55`; }}
+                        >
+                          {item.label}
+                        </span>
+                      </span>
+                    ))}
                   </div>
                 )}
               </div>
@@ -415,8 +509,45 @@ export function DetailPanel({ selectedNodes, selectedEdge, onClose, onFocus, foc
         )}
 
         {/* Edge */}
-        {selectedEdge && selectedEdge.data && (
+        {selectedEdge && selectedEdge.data && (() => {
+          const srcInfo = nodeDisplayMap.get(selectedEdge.source);
+          const tgtInfo = nodeDisplayMap.get(selectedEdge.target);
+          return (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {/* Source → Target header with clickable names */}
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap',
+              background: C.surface, border: `1px solid ${C.border}`,
+              borderRadius: 10, padding: '8px 10px',
+            }}>
+              {srcInfo && (
+                <span
+                  role="link"
+                  tabIndex={0}
+                  style={{ ...navLinkStyle, fontSize: 11, fontWeight: 600 }}
+                  onClick={() => onNavigateToNode?.(selectedEdge.source)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') onNavigateToNode?.(selectedEdge.source); }}
+                  onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.textDecorationColor = C.accent; }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.textDecorationColor = `${C.accent}55`; }}
+                >
+                  {srcInfo.sheetName}
+                </span>
+              )}
+              <span style={{ fontSize: 11, color: C.textMuted }}>&#8594;</span>
+              {tgtInfo && (
+                <span
+                  role="link"
+                  tabIndex={0}
+                  style={{ ...navLinkStyle, fontSize: 11, fontWeight: 600 }}
+                  onClick={() => onNavigateToNode?.(selectedEdge.target)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') onNavigateToNode?.(selectedEdge.target); }}
+                  onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.textDecorationColor = C.accent; }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.textDecorationColor = `${C.accent}55`; }}
+                >
+                  {tgtInfo.sheetName}
+                </span>
+              )}
+            </div>
             <div style={{ fontSize: 11, color: C.textMuted, fontWeight: 600 }}>
               {selectedEdge.data.references.length} formula reference{selectedEdge.data.references.length !== 1 ? 's' : ''}
             </div>
@@ -452,7 +583,8 @@ export function DetailPanel({ selectedNodes, selectedEdge, onClose, onFocus, foc
               ))}
             </div>
           </div>
-        )}
+          );
+        })()}
       </div>
     </div>
   );

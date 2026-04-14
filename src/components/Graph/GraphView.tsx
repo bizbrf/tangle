@@ -23,6 +23,7 @@ import { toPng } from 'html-to-image';
 
 import type { WorkbookFile } from '../../types';
 import { applyLayoutAlgorithm, buildGraph, type NodeData, type EdgeData, type LayoutMode, type LayoutDirection, type LayoutAlgorithm } from '../../lib/graph';
+import { buildDependencyGraph, detectCycles } from '../../lib/resolver';
 import { C } from './constants';
 import { edgeStrokeWidth, edgeAccentColor, edgeRestColor } from './edge-helpers';
 import { WeightedEdge } from './WeightedEdge';
@@ -32,6 +33,7 @@ import { DetailPanel } from './DetailPanel';
 import { Toolbar, type ViewMode } from './Toolbar';
 import { EdgeKindFilterBar, type EdgeKindFilterState } from './EdgeKindFilterBar';
 import { Legend } from './Legend';
+import { StatsPanel } from './StatsPanel';
 import { EmptyState } from './EmptyState';
 import { toolbarButtonBaseStyle, toolbarRowStyle, toolbarStackStyle } from './toolbarStyles';
 
@@ -115,6 +117,8 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const [selectedCycleIndex, setSelectedCycleIndex] = useState<number | null>(null);
+  const [statsOpen, setStatsOpen] = useState(false);
   const { fitView } = useReactFlow();
   const highlightTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const reorganizeTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -123,6 +127,47 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
   // Check if any loaded workbook has named ranges / Excel tables (for showing toggles)
   const hasNamedRanges = useMemo(() => workbooks.some((wb) => wb.namedRanges.length > 0), [workbooks]);
   const hasTables = useMemo(() => workbooks.some((wb) => wb.tables.length > 0), [workbooks]);
+
+  // ── Cycle detection ─────────────────────────────────────────────────────────
+  const cycles = useMemo(() => {
+    if (workbooks.length === 0) return [];
+    const depGraph = buildDependencyGraph(workbooks);
+    return detectCycles(depGraph);
+  }, [workbooks]);
+
+  // Reset selected cycle when workbooks change — intentional synchronization
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSelectedCycleIndex(null);
+  }, [workbooks]);
+
+  // Compute the set of node IDs in the currently selected cycle for highlighting
+  const cycleHighlightIds = useMemo<Set<string> | null>(() => {
+    if (selectedCycleIndex === null || !cycles[selectedCycleIndex]) return null;
+    const cycle = cycles[selectedCycleIndex];
+    // Cycle node IDs are "Workbook::Sheet" from resolver — need to match graph node IDs
+    // Graph node IDs use the same "Workbook::Sheet" format
+    return new Set(cycle);
+  }, [selectedCycleIndex, cycles]);
+
+  const handleSelectCycle = useCallback((index: number | null) => {
+    setSelectedCycleIndex(index);
+    if (index !== null && cycles[index]) {
+      const cycle = cycles[index];
+      // Try to fit view to the cycle's nodes
+      const cycleNodeIds = new Set(cycle);
+      const matchingNodes = nodes.filter((n) => cycleNodeIds.has(n.id));
+      if (matchingNodes.length > 0) {
+        requestAnimationFrame(() => {
+          fitView({
+            nodes: matchingNodes.map((n) => ({ id: n.id })),
+            padding: 0.4,
+            duration: 400,
+          });
+        });
+      }
+    }
+  }, [cycles, nodes, fitView]);
 
   const computeLayoutNodes = useCallback((
     baseNodes: Node<NodeData>[],
@@ -458,31 +503,33 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
       const dimmedBySelection = hasSelection && !highlight;
       const dimmedByFocus = !inFocus;
       const dimmedBySearch = searchMatchIds !== null && !(searchMatchIds.has(edge.source) && searchMatchIds.has(edge.target));
+      const dimmedByCycle = cycleHighlightIds !== null && !(cycleHighlightIds.has(edge.source) && cycleHighlightIds.has(edge.target));
+      const inCycle = cycleHighlightIds !== null && cycleHighlightIds.has(edge.source) && cycleHighlightIds.has(edge.target);
 
       return {
         ...edge,
         type: 'weighted',
         style: {
-          stroke: strokeColor,
-          strokeWidth: highlight ? baseWidth + 1 : baseWidth,
-          opacity: dimmedBySearch ? 0.06 : dimmedByFocus ? 0.04 : dimmedBySelection ? 0.12 : 1,
-          filter: highlight ? `drop-shadow(0 0 ${baseWidth + 2}px ${glowColor}88)` : 'none',
+          stroke: inCycle ? C.amber : strokeColor,
+          strokeWidth: inCycle ? baseWidth + 1.5 : highlight ? baseWidth + 1 : baseWidth,
+          opacity: dimmedBySearch ? 0.06 : dimmedByCycle ? 0.06 : dimmedByFocus ? 0.04 : dimmedBySelection ? 0.12 : 1,
+          filter: inCycle ? `drop-shadow(0 0 ${baseWidth + 3}px ${C.amberGlow})` : highlight ? `drop-shadow(0 0 ${baseWidth + 2}px ${glowColor}88)` : 'none',
           transition: 'stroke 0.2s, stroke-width 0.2s, opacity 0.2s, filter 0.2s',
         },
-        animated: highlight,
+        animated: highlight || inCycle,
         markerEnd: {
           type: MarkerType.ArrowClosed,
-          color: strokeColor,
+          color: inCycle ? C.amber : strokeColor,
           width: arrowSize,
           height: arrowSize,
         },
       };
     });
-  }, [edges, selectedNodeIds, selectedEdge, edgeKindFilter, focusNeighborIds, searchMatchIds]);
+  }, [edges, selectedNodeIds, selectedEdge, edgeKindFilter, focusNeighborIds, searchMatchIds, cycleHighlightIds]);
 
-  // Apply focus + search dimming to nodes
+  // Apply focus + search + cycle dimming to nodes
   const styledNodes = useMemo((): Node<NodeData>[] => {
-    const needsDimming = focusNeighborIds !== null || searchMatchIds !== null;
+    const needsDimming = focusNeighborIds !== null || searchMatchIds !== null || cycleHighlightIds !== null;
     if (!needsDimming) return nodes;
 
     return nodes.map((node) => {
@@ -494,6 +541,8 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
       let opacity = 1;
       if (searchMatchIds !== null) {
         opacity = searchMatchIds.has(node.id) ? 1 : 0.08;
+      } else if (cycleHighlightIds !== null) {
+        opacity = cycleHighlightIds.has(node.id) ? 1 : 0.08;
       } else if (focusNeighborIds !== null) {
         opacity = focusNeighborIds.has(node.id) ? 1 : 0.08;
       }
@@ -507,7 +556,7 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
         },
       };
     });
-  }, [nodes, focusNeighborIds, searchMatchIds]);
+  }, [nodes, focusNeighborIds, searchMatchIds, cycleHighlightIds]);
 
   const onSelectionChange = useCallback(
     ({ nodes: sNodes, edges: sEdges }: OnSelectionChangeParams) => {
@@ -523,6 +572,7 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
   function onPaneClick() {
     clearSelection();
     setFocusNodeId(null);
+    setSelectedCycleIndex(null);
   }
 
   if (workbooks.length === 0) return <EmptyState />;
@@ -583,6 +633,11 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
           onResetLayout={handleResetLayout}
           onRandomizeLayout={handleRandomizeLayout}
           onExportPng={handleExportPng}
+          cycles={cycles}
+          onSelectCycle={handleSelectCycle}
+          selectedCycleIndex={selectedCycleIndex}
+          statsOpen={statsOpen}
+          onStatsToggle={() => setStatsOpen((o) => !o)}
         />
         <EdgeKindFilterBar filter={edgeKindFilter} onFilterChange={setEdgeKindFilter} showNamedRanges={showNamedRanges} showTables={showTables} />
 
@@ -772,6 +827,15 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
             Exit
           </button>
         </div>
+      )}
+
+      {statsOpen && (
+        <StatsPanel
+          workbooks={workbooks}
+          nodes={nodes}
+          edges={edges}
+          onClose={() => setStatsOpen(false)}
+        />
       )}
 
       <DetailPanel

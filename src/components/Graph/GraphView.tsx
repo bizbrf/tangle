@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ChangeEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import {
   ReactFlow,
   ReactFlowProvider,
@@ -15,8 +15,11 @@ import {
   type Node,
   type Edge,
   type OnSelectionChangeParams,
+  getNodesBounds,
+  getViewportForBounds,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
+import { toPng } from 'html-to-image';
 
 import type { WorkbookFile } from '../../types';
 import { applyLayoutAlgorithm, buildGraph, type NodeData, type EdgeData, type LayoutMode, type LayoutDirection, type LayoutAlgorithm } from '../../lib/graph';
@@ -109,6 +112,9 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
   const [focusNodeId, setFocusNodeId] = useState<string | null>(null);
   const [focusDepth, setFocusDepth] = useState(1);
   const [focusDirection, setFocusDirection] = useState<'both' | 'upstream' | 'downstream'>('both');
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const { fitView } = useReactFlow();
   const highlightTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const reorganizeTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -213,6 +219,14 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
       const nextView: ViewMode = viewMode === 'graph' ? 'overview' : 'graph';
       const nextDir: LayoutDirection = layoutDirection === 'LR' ? 'TB' : 'LR';
 
+      // Ctrl+F or / opens search
+      if ((e.key === 'f' && (e.ctrlKey || e.metaKey)) || e.key === '/') {
+        e.preventDefault();
+        setSearchOpen(true);
+        requestAnimationFrame(() => searchInputRef.current?.focus());
+        return;
+      }
+
       switch (e.key) {
         case 'g': case 'G':
           setViewModeRaw(nextView);
@@ -230,6 +244,52 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [viewMode, layoutDirection, fitEnabled, toggleFit]);
+
+  // Search: compute matching node IDs (declared before handlers that reference it)
+  const searchMatchIds = useMemo<Set<string> | null>(() => {
+    if (!searchOpen || !searchQuery.trim()) return null;
+    const q = searchQuery.trim().toLowerCase();
+    const ids = new Set<string>();
+    for (const node of nodes) {
+      const d = node.data as NodeData;
+      const label = (d.label ?? '').toLowerCase();
+      const sheet = (d.sheetName ?? '').toLowerCase();
+      const workbook = (d.workbookName ?? '').toLowerCase();
+      const namedRange = (d.namedRangeName ?? '').toLowerCase();
+      const table = (d.tableName ?? '').toLowerCase();
+      if (label.includes(q) || sheet.includes(q) || workbook.includes(q) || namedRange.includes(q) || table.includes(q)) {
+        ids.add(node.id);
+      }
+    }
+    return ids;
+  }, [searchOpen, searchQuery, nodes]);
+
+  // ── Search handlers ──────────────────────────────────────────────────────────
+  const closeSearch = useCallback(() => {
+    setSearchOpen(false);
+    setSearchQuery('');
+  }, []);
+
+  const handleSearchChange = useCallback((e: ChangeEvent<HTMLInputElement>) => {
+    setSearchQuery(e.target.value);
+  }, []);
+
+  const handleSearchKeyDown = useCallback((e: ReactKeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Escape') {
+      closeSearch();
+      return;
+    }
+    if (e.key === 'Enter' && searchMatchIds && searchMatchIds.size > 0) {
+      const firstMatchId = Array.from(searchMatchIds)[0];
+      fitView({ nodes: [{ id: firstMatchId }], padding: 0.5, duration: 400 });
+    }
+  }, [closeSearch, searchMatchIds, fitView]);
+
+  const handleSearchBlur = useCallback(() => {
+    if (!searchQuery.trim()) {
+      closeSearch();
+    }
+  }, [searchQuery, closeSearch]);
 
   const onConnect = useCallback(
     (connection: Connection) => setEdges((eds) => addEdge(connection, eds)),
@@ -311,6 +371,40 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
     animateLayoutUpdate(computeLayoutNodes(baseNodes, baseEdges, algorithm, layoutSeedRef.current));
   }, [animateLayoutUpdate, computeLayoutNodes, hiddenFiles, layoutDirection, layoutMode, setEdges, showNamedRanges, showTables, workbooks, handleResetLayout]);
 
+  // ── Export graph as PNG ──────────────────────────────────────────────────────
+  const handleExportPng = useCallback(() => {
+    const viewport = document.querySelector('.react-flow__viewport') as HTMLElement | null;
+    if (!viewport || nodes.length === 0) return;
+
+    const nodesBounds = getNodesBounds(nodes);
+    const IMAGE_SCALE = 2; // 2x resolution
+    const PADDING = 50;
+    const imageWidth = nodesBounds.width + PADDING * 2;
+    const imageHeight = nodesBounds.height + PADDING * 2;
+    const transform = getViewportForBounds(nodesBounds, imageWidth, imageHeight, 0.5, 2, PADDING);
+
+    toPng(viewport, {
+      backgroundColor: C.bg,
+      width: imageWidth * IMAGE_SCALE,
+      height: imageHeight * IMAGE_SCALE,
+      style: {
+        width: `${imageWidth}px`,
+        height: `${imageHeight}px`,
+        transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.zoom})`,
+      },
+    }).then((dataUrl) => {
+      const a = document.createElement('a');
+      a.href = dataUrl;
+      const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+      a.download = `tangle-export-${ts}.png`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }).catch((err) => {
+      console.error('Failed to export PNG:', err);
+    });
+  }, [nodes]);
+
   // Clean up any pending reorganize timer on unmount
   useEffect(() => {
     return () => clearTimeout(reorganizeTimerRef.current);
@@ -363,6 +457,7 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
 
       const dimmedBySelection = hasSelection && !highlight;
       const dimmedByFocus = !inFocus;
+      const dimmedBySearch = searchMatchIds !== null && !(searchMatchIds.has(edge.source) && searchMatchIds.has(edge.target));
 
       return {
         ...edge,
@@ -370,7 +465,7 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
         style: {
           stroke: strokeColor,
           strokeWidth: highlight ? baseWidth + 1 : baseWidth,
-          opacity: dimmedByFocus ? 0.04 : dimmedBySelection ? 0.12 : 1,
+          opacity: dimmedBySearch ? 0.06 : dimmedByFocus ? 0.04 : dimmedBySelection ? 0.12 : 1,
           filter: highlight ? `drop-shadow(0 0 ${baseWidth + 2}px ${glowColor}88)` : 'none',
           transition: 'stroke 0.2s, stroke-width 0.2s, opacity 0.2s, filter 0.2s',
         },
@@ -383,27 +478,36 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
         },
       };
     });
-  }, [edges, selectedNodeIds, selectedEdge, edgeKindFilter, focusNeighborIds]);
+  }, [edges, selectedNodeIds, selectedEdge, edgeKindFilter, focusNeighborIds, searchMatchIds]);
 
-  // Apply focus dimming to nodes
+  // Apply focus + search dimming to nodes
   const styledNodes = useMemo((): Node<NodeData>[] => {
-    return focusNeighborIds
-      ? nodes.map((node) => {
-          const existingTransition = (node.style as Record<string, unknown> | undefined)?.transition as string | undefined;
-          const composedTransition = existingTransition
-            ? `${existingTransition}, opacity 0.2s`
-            : 'opacity 0.2s';
-          return {
-            ...node,
-            style: {
-              ...node.style,
-              opacity: focusNeighborIds.has(node.id) ? 1 : 0.08,
-              transition: composedTransition,
-            },
-          };
-        })
-      : nodes;
-  }, [nodes, focusNeighborIds]);
+    const needsDimming = focusNeighborIds !== null || searchMatchIds !== null;
+    if (!needsDimming) return nodes;
+
+    return nodes.map((node) => {
+      const existingTransition = (node.style as Record<string, unknown> | undefined)?.transition as string | undefined;
+      const composedTransition = existingTransition
+        ? `${existingTransition}, opacity 0.2s`
+        : 'opacity 0.2s';
+
+      let opacity = 1;
+      if (searchMatchIds !== null) {
+        opacity = searchMatchIds.has(node.id) ? 1 : 0.08;
+      } else if (focusNeighborIds !== null) {
+        opacity = focusNeighborIds.has(node.id) ? 1 : 0.08;
+      }
+
+      return {
+        ...node,
+        style: {
+          ...node.style,
+          opacity,
+          transition: composedTransition,
+        },
+      };
+    });
+  }, [nodes, focusNeighborIds, searchMatchIds]);
 
   const onSelectionChange = useCallback(
     ({ nodes: sNodes, edges: sEdges }: OnSelectionChangeParams) => {
@@ -478,6 +582,7 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
           onApplyLayoutAlgorithm={handleApplyLayoutAlgorithm}
           onResetLayout={handleResetLayout}
           onRandomizeLayout={handleRandomizeLayout}
+          onExportPng={handleExportPng}
         />
         <EdgeKindFilterBar filter={edgeKindFilter} onFilterChange={setEdgeKindFilter} showNamedRanges={showNamedRanges} showTables={showTables} />
 
@@ -530,6 +635,76 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
       </div>
 
       <Legend showNamedRanges={showNamedRanges} showTables={showTables} />
+
+      {/* Search Bar */}
+      {searchOpen && (
+        <div data-testid="search-bar" style={{
+          position: 'absolute',
+          top: 12,
+          left: 16,
+          zIndex: 15,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          padding: '5px 10px',
+          background: C.bgPanel,
+          border: `1px solid ${C.border}`,
+          borderRadius: 10,
+          boxShadow: '0 4px 20px rgba(0,0,0,0.6)',
+          minWidth: 220,
+        }}>
+          <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke={C.textMuted} strokeWidth={1.5} style={{ flexShrink: 0 }}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+          </svg>
+          <input
+            ref={searchInputRef}
+            type="text"
+            value={searchQuery}
+            onChange={handleSearchChange}
+            onKeyDown={handleSearchKeyDown}
+            onBlur={handleSearchBlur}
+            placeholder="Search nodes..."
+            style={{
+              background: 'transparent',
+              border: 'none',
+              outline: 'none',
+              color: C.textPrimary,
+              fontSize: 12,
+              fontWeight: 500,
+              width: 160,
+              caretColor: C.accent,
+            }}
+          />
+          {searchMatchIds !== null && (
+            <span style={{
+              fontSize: 10,
+              fontWeight: 600,
+              color: searchMatchIds.size > 0 ? C.accent : C.textMuted,
+              whiteSpace: 'nowrap',
+            }}>
+              {searchMatchIds.size} match{searchMatchIds.size !== 1 ? 'es' : ''}
+            </span>
+          )}
+          <button
+            onClick={closeSearch}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              cursor: 'pointer',
+              color: C.textMuted,
+              fontSize: 14,
+              lineHeight: 1,
+              padding: '2px 4px',
+              borderRadius: 4,
+              transition: 'color 0.15s',
+            }}
+            onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.color = C.textPrimary)}
+            onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.color = C.textMuted)}
+          >
+            ×
+          </button>
+        </div>
+      )}
 
       {/* Focus Mode Controls */}
       {focusNodeId && (

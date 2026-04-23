@@ -1,11 +1,11 @@
 import type { Node, NodeProps } from '@xyflow/react';
 import type { ClusterData } from '../../lib/graph';
-import { C } from './constants';
+import { C, alpha } from './constants';
 
 export function ClusterNode({ data }: NodeProps<Node<ClusterData>>) {
-  const borderColor = data.isExternal ? `${C.amber}25` : `${C.accent}20`;
-  const bgColor = data.isExternal ? 'rgba(245,158,11,0.03)' : 'rgba(232,68,90,0.03)';
-  const labelColor = data.isExternal ? `${C.amber}88` : `${C.accent}77`;
+  const borderColor = data.isExternal ? alpha(C.amber, 15) : alpha(C.accent, 12);
+  const bgColor = data.isExternal ? alpha(C.amber, 3) : alpha(C.accent, 3);
+  const labelColor = data.isExternal ? alpha(C.amber, 53) : alpha(C.accent, 47);
   return (
     <div style={{
       width: data.width,

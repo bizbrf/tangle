@@ -1,91 +1,304 @@
 @import "tailwindcss";
 
+/* ── Inter variable font (system fallback if offline) ─────── */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+/* ── Theme tokens (defaults = Refined) ───────────────────── */
+:root,
+:root[data-theme="refined"] {
+  --tg-bg: #0b0d11;
+  --tg-bg-deep: #07080c;
+  --tg-bg-panel: #0d1017;
+  --tg-surface: #131720;
+  --tg-surface-raised: #191e28;
+  --tg-surface-hi: #1e2535;
+  --tg-border: #1e2535;
+  --tg-border-hover: #2a3347;
+  --tg-border-strong: #2a3347;
+  --tg-text-primary: #edf0f5;
+  --tg-text-secondary: #7b8799;
+  --tg-text-muted: #3d4a5c;
+  --tg-text-faint: #2a3347;
+
+  --tg-accent: #e8445a;
+  --tg-accent-dim: rgba(232,68,90,0.15);
+  --tg-accent-glow: rgba(232,68,90,0.3);
+  --tg-accent-glow-faint: rgba(232,68,90,0.12);
+
+  --tg-amber: #f59e0b;
+  --tg-amber-dim: rgba(245,158,11,0.15);
+  --tg-amber-glow: rgba(245,158,11,0.3);
+  --tg-amber-glow-faint: rgba(245,158,11,0.1);
+
+  --tg-emerald: #10b981;
+  --tg-emerald-dim: rgba(16,185,129,0.15);
+  --tg-emerald-glow: rgba(16,185,129,0.3);
+  --tg-emerald-glow-faint: rgba(16,185,129,0.1);
+
+  --tg-violet: #a78bfa;
+  --tg-violet-dim: rgba(167,139,250,0.15);
+  --tg-violet-glow: rgba(167,139,250,0.3);
+  --tg-violet-glow-faint: rgba(167,139,250,0.1);
+
+  --tg-indigo: #818cf8;
+
+  /* Edge kind colors (default reuse accent palette for refined) */
+  --tg-edge-cross-sheet: #e8445a;
+  --tg-edge-cross-file: #818cf8;
+  --tg-edge-external: #f59e0b;
+  --tg-edge-named: #10b981;
+  --tg-edge-table: #a78bfa;
+
+  /* Fonts + radii */
+  --tg-font-sans: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --tg-font-mono: ui-monospace, "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
+  --tg-node-radius: 14px;
+  --tg-panel-radius: 10px;
+
+  /* Canvas pattern tint */
+  --tg-canvas-pattern: #1a2030;
+  --tg-canvas-pattern-opacity: 1;
+}
+
+/* ── Dense ─────────────────────────────────────────────────── */
+:root[data-theme="dense"] {
+  --tg-bg: #07080a;
+  --tg-bg-deep: #04050a;
+  --tg-bg-panel: #0a0c0f;
+  --tg-surface: #0d1014;
+  --tg-surface-raised: #12161c;
+  --tg-surface-hi: #1a1f27;
+  --tg-border: #1a1f27;
+  --tg-border-hover: #242b36;
+  --tg-border-strong: #242b36;
+  --tg-text-primary: #d8dde5;
+  --tg-text-secondary: #6b7584;
+  --tg-text-muted: #3e4754;
+  --tg-text-faint: #2a313d;
+
+  --tg-accent: #e8445a;
+  --tg-accent-dim: rgba(232,68,90,0.12);
+  --tg-accent-glow: rgba(232,68,90,0.25);
+  --tg-accent-glow-faint: rgba(232,68,90,0.08);
+
+  --tg-amber: #f59e0b;
+  --tg-amber-dim: rgba(245,158,11,0.12);
+  --tg-amber-glow: rgba(245,158,11,0.2);
+  --tg-amber-glow-faint: rgba(245,158,11,0.08);
+
+  --tg-emerald: #10b981;
+  --tg-emerald-dim: rgba(16,185,129,0.12);
+  --tg-emerald-glow: rgba(16,185,129,0.2);
+  --tg-emerald-glow-faint: rgba(16,185,129,0.08);
+
+  --tg-violet: #a78bfa;
+  --tg-violet-dim: rgba(167,139,250,0.12);
+  --tg-violet-glow: rgba(167,139,250,0.2);
+  --tg-violet-glow-faint: rgba(167,139,250,0.08);
+
+  --tg-indigo: #60a5fa;
+
+  --tg-edge-cross-sheet: #e8445a;
+  --tg-edge-cross-file: #60a5fa;
+  --tg-edge-external: #f59e0b;
+  --tg-edge-named: #10b981;
+  --tg-edge-table: #a78bfa;
+
+  --tg-font-sans: ui-monospace, "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
+  --tg-font-mono: ui-monospace, "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
+  --tg-node-radius: 2px;
+  --tg-panel-radius: 3px;
+
+  --tg-canvas-pattern: #141821;
+  --tg-canvas-pattern-opacity: 0.9;
+}
+
+/* ── Cinematic ────────────────────────────────────────────── */
+:root[data-theme="cinematic"] {
+  --tg-bg: #05070d;
+  --tg-bg-deep: #020308;
+  --tg-bg-panel: rgba(10,14,22,0.75);
+  --tg-surface: rgba(14,18,28,0.85);
+  --tg-surface-raised: rgba(22,26,40,0.85);
+  --tg-surface-hi: rgba(30,34,48,0.9);
+  --tg-border: rgba(120,140,180,0.12);
+  --tg-border-hover: rgba(120,140,180,0.28);
+  --tg-border-strong: rgba(120,140,180,0.22);
+  --tg-text-primary: #e8ecf5;
+  --tg-text-secondary: #8892a8;
+  --tg-text-muted: #4a5368;
+  --tg-text-faint: #2d3446;
+
+  --tg-accent: #ff5577;
+  --tg-accent-dim: rgba(255,85,119,0.15);
+  --tg-accent-glow: rgba(255,85,119,0.4);
+  --tg-accent-glow-faint: rgba(255,85,119,0.15);
+
+  --tg-amber: #ffb84d;
+  --tg-amber-dim: rgba(255,184,77,0.15);
+  --tg-amber-glow: rgba(255,184,77,0.4);
+  --tg-amber-glow-faint: rgba(255,184,77,0.15);
+
+  --tg-emerald: #4ade80;
+  --tg-emerald-dim: rgba(74,222,128,0.15);
+  --tg-emerald-glow: rgba(74,222,128,0.4);
+  --tg-emerald-glow-faint: rgba(74,222,128,0.15);
+
+  --tg-violet: #c084fc;
+  --tg-violet-dim: rgba(192,132,252,0.15);
+  --tg-violet-glow: rgba(192,132,252,0.4);
+  --tg-violet-glow-faint: rgba(192,132,252,0.15);
+
+  --tg-indigo: #5b8cff;
+
+  --tg-edge-cross-sheet: #ff5577;
+  --tg-edge-cross-file: #5b8cff;
+  --tg-edge-external: #ffb84d;
+  --tg-edge-named: #4ade80;
+  --tg-edge-table: #c084fc;
+
+  --tg-font-sans: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --tg-font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --tg-node-radius: 10px;
+  --tg-panel-radius: 12px;
+
+  --tg-canvas-pattern: #1a2040;
+  --tg-canvas-pattern-opacity: 0.5;
+}
+
 html, body, #root {
   height: 100%;
   margin: 0;
-  background: #0b0d11;
+  background: var(--tg-bg);
+  font-family: var(--tg-font-sans);
+  color: var(--tg-text-primary);
 }
 
 /* Dark scrollbars */
 * {
   scrollbar-width: thin;
-  scrollbar-color: #1e2535 transparent;
+  scrollbar-color: var(--tg-border) transparent;
 }
 ::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #1e2535; border-radius: 99px; }
-::-webkit-scrollbar-thumb:hover { background: #2a3347; }
+::-webkit-scrollbar-thumb { background: var(--tg-border); border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: var(--tg-border-hover); }
 
 /* ── React Flow dark overrides ─────────────────────────────── */
-
 .react-flow__renderer,
 .react-flow__pane {
-  background: #0b0d11 !important;
+  background: var(--tg-bg) !important;
 }
-
-/* Controls */
 .react-flow__controls {
-  background: #131720 !important;
-  border: 1px solid #1e2535 !important;
-  border-radius: 10px !important;
+  background: var(--tg-surface) !important;
+  border: 1px solid var(--tg-border) !important;
+  border-radius: var(--tg-panel-radius) !important;
   overflow: hidden;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6) !important;
 }
 .react-flow__controls-button {
   background: transparent !important;
-  border-bottom: 1px solid #1e2535 !important;
-  fill: #4a5568 !important;
+  border-bottom: 1px solid var(--tg-border) !important;
+  fill: var(--tg-text-muted) !important;
   width: 28px !important;
   height: 28px !important;
   transition: background 0.15s, fill 0.15s !important;
 }
-.react-flow__controls-button:last-child {
-  border-bottom: none !important;
-}
+.react-flow__controls-button:last-child { border-bottom: none !important; }
 .react-flow__controls-button:hover {
-  background: #191e28 !important;
-  fill: #edf0f5 !important;
+  background: var(--tg-surface-raised) !important;
+  fill: var(--tg-text-primary) !important;
 }
 .react-flow__controls-button svg {
   fill: inherit !important;
   max-width: 12px !important;
 }
-
-/* Minimap */
 .react-flow__minimap {
-  background: #131720 !important;
-  border: 1px solid #1e2535 !important;
-  border-radius: 10px !important;
+  background: var(--tg-surface) !important;
+  border: 1px solid var(--tg-border) !important;
+  border-radius: var(--tg-panel-radius) !important;
   overflow: hidden;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6) !important;
 }
-
-/* Edge labels */
 .react-flow__edge-text {
-  fill: #e8445a !important;
+  fill: var(--tg-accent) !important;
   font-size: 10px !important;
   font-weight: 700 !important;
 }
-.react-flow__edge-textbg {
-  fill: #131720 !important;
-}
-
-/* Lasso selection */
+.react-flow__edge-textbg { fill: var(--tg-surface) !important; }
 .react-flow__selection {
-  background: rgba(232, 68, 90, 0.06) !important;
-  border: 1px solid rgba(232, 68, 90, 0.35) !important;
+  background: var(--tg-accent-dim) !important;
+  border: 1px solid var(--tg-accent) !important;
 }
-
-/* Node focus outline */
-.react-flow__node:focus {
-  outline: none !important;
-}
-
-/* Attribution */
+.react-flow__node:focus { outline: none !important; }
 .react-flow__attribution {
   background: transparent !important;
-  color: #2a3347 !important;
+  color: var(--tg-text-faint) !important;
 }
-.react-flow__attribution a {
-  color: #2a3347 !important;
+.react-flow__attribution a { color: var(--tg-text-faint) !important; }
+
+/* ── Cinematic: floating panels ────────────────────────────── */
+:root[data-theme="cinematic"] .app-shell {
+  position: relative;
+}
+:root[data-theme="cinematic"] .app-sidebar {
+  position: absolute;
+  left: 16px;
+  top: 16px;
+  bottom: 16px;
+  width: 256px;
+  border-right: none !important;
+  border: 1px solid var(--tg-border-strong);
+  border-radius: var(--tg-panel-radius);
+  background: var(--tg-bg-panel) !important;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: 0 16px 40px rgba(0,0,0,0.5);
+  z-index: 30;
+  overflow: hidden;
+}
+:root[data-theme="cinematic"] .app-main {
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+}
+:root[data-theme="cinematic"] .react-flow__renderer,
+:root[data-theme="cinematic"] .react-flow__pane {
+  background: transparent !important;
+}
+
+/* Cinematic: starfield deep-space overlay */
+:root[data-theme="cinematic"] .app-shell::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(ellipse 60% 40% at 60% 40%, rgba(91,140,255,0.08) 0%, transparent 60%),
+    radial-gradient(ellipse 40% 30% at 20% 80%, rgba(255,85,119,0.06) 0%, transparent 60%),
+    radial-gradient(ellipse 50% 40% at 85% 80%, rgba(192,132,252,0.05) 0%, transparent 60%);
+}
+
+/* Glass panel class used by Toolbar / DetailPanel / StatsPanel in cinematic */
+:root[data-theme="cinematic"] .glass-panel {
+  background: var(--tg-bg-panel) !important;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--tg-border-strong) !important;
+  border-radius: var(--tg-panel-radius) !important;
+  box-shadow: 0 16px 40px rgba(0,0,0,0.5) !important;
+}
+
+/* Dense: sharper node corners, tighter focus ring */
+:root[data-theme="dense"] .react-flow__node { font-family: var(--tg-font-mono); }
+:root[data-theme="dense"] .react-flow__edge-text { font-family: var(--tg-font-mono) !important; }
+
+/* Respect reduced motion for cinematic animations */
+@media (prefers-reduced-motion: reduce) {
+  :root[data-theme="cinematic"] * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

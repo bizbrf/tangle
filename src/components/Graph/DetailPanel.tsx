@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import type { Node, Edge } from '@xyflow/react';
 import type { EdgeReference } from '../../types';
 import type { NodeData, EdgeData, EdgeKind } from '../../lib/graph';
-import { C } from './constants';
+import { C, alpha } from './constants';
 
 interface DetailPanelProps {
   selectedNodes: Node<NodeData>[];
@@ -25,7 +25,7 @@ const navLinkStyle: React.CSSProperties = {
   cursor: 'pointer',
   color: C.accent,
   textDecoration: 'underline',
-  textDecorationColor: `${C.accent}55`,
+  textDecorationColor: `${alpha(C.accent, 33)}`,
   textUnderlineOffset: 2,
   transition: 'color 0.15s, text-decoration-color 0.15s',
 };
@@ -103,7 +103,7 @@ export function DetailPanel({ selectedNodes, selectedEdge, onClose, onFocus, foc
     display: 'flex', alignItems: 'center', gap: 5,
     padding: '6px 12px', borderRadius: 8, border: 'none', cursor: active ? 'default' : 'pointer',
     fontSize: 11, fontWeight: 600,
-    background: active ? `${C.accent}22` : C.surface,
+    background: active ? `${alpha(C.accent, 13)}` : C.surface,
     color: active ? C.accent : C.textSecondary,
     transition: 'all 0.15s',
     opacity: active ? 0.6 : 1,
@@ -189,7 +189,7 @@ export function DetailPanel({ selectedNodes, selectedEdge, onClose, onFocus, foc
                   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                   padding: '8px 12px', borderRadius: 8, border: 'none', cursor: 'pointer',
                   fontSize: 11, fontWeight: 600,
-                  background: pathActive ? `${C.accent}22` : C.surface,
+                  background: pathActive ? `${alpha(C.accent, 13)}` : C.surface,
                   color: pathActive ? C.accent : C.textSecondary,
                   transition: 'all 0.15s',
                 }}
@@ -211,10 +211,10 @@ export function DetailPanel({ selectedNodes, selectedEdge, onClose, onFocus, foc
             {/* Name card */}
             <div style={{
               background: C.surface,
-              border: `1px solid ${node.data.isTable ? `${C.violet}44` : node.data.isNamedRange ? `${C.emerald}44` : node.data.isExternal ? `${C.amber}44` : `${C.accent}33`}`,
+              border: `1px solid ${node.data.isTable ? `${alpha(C.violet, 27)}` : node.data.isNamedRange ? `${alpha(C.emerald, 27)}` : node.data.isExternal ? `${alpha(C.amber, 27)}` : `${alpha(C.accent, 20)}`}`,
               borderLeft: `3px solid ${node.data.isTable ? C.violet : node.data.isNamedRange ? C.emerald : node.data.isExternal ? C.amber : C.accent}`,
               borderRadius: 10, padding: '10px 12px',
-              boxShadow: `0 0 16px ${node.data.isTable ? C.violetGlow.replace('0.3', '0.1') : node.data.isNamedRange ? C.emeraldGlow.replace('0.3', '0.1') : node.data.isExternal ? C.amberGlow.replace('0.3', '0.1') : C.accentGlow.replace('0.3', '0.1')}`,
+              boxShadow: `0 0 16px ${node.data.isTable ? C.violetGlowFaint : node.data.isNamedRange ? C.emeraldGlowFaint : node.data.isExternal ? C.amberGlowFaint : C.accentGlowFaint}`,
             }}>
               <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: C.textMuted, marginBottom: 3 }}>
                 {node.data.workbookName}
@@ -227,7 +227,7 @@ export function DetailPanel({ selectedNodes, selectedEdge, onClose, onFocus, foc
             {/* Named range details */}
             {node.data.isNamedRange && node.data.namedRangeRef && (
               <div style={{
-                background: `${C.emerald}0a`, border: `1px solid ${C.emerald}33`,
+                background: `${alpha(C.emerald, 4)}`, border: `1px solid ${alpha(C.emerald, 20)}`,
                 borderRadius: 8, padding: '8px 10px',
                 fontSize: 11, color: C.emerald,
                 display: 'flex', alignItems: 'center', gap: 7,
@@ -246,7 +246,7 @@ export function DetailPanel({ selectedNodes, selectedEdge, onClose, onFocus, foc
                 {/* Scope indicator */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, color: C.textMuted }}>
                   <span style={{
-                    background: `${C.emerald}15`, border: `1px solid ${C.emerald}33`,
+                    background: `${alpha(C.emerald, 8)}`, border: `1px solid ${alpha(C.emerald, 20)}`,
                     borderRadius: 4, padding: '2px 6px', fontSize: 10, fontWeight: 600, color: C.emerald,
                   }}>
                     {node.data.namedRangeScope === 'sheet' ? 'Sheet-scoped' : 'Workbook-scoped'}
@@ -280,7 +280,7 @@ export function DetailPanel({ selectedNodes, selectedEdge, onClose, onFocus, foc
                 {/* Table reference */}
                 {node.data.tableRef && (
                   <div style={{
-                    background: `${C.violet}0a`, border: `1px solid ${C.violet}33`,
+                    background: `${alpha(C.violet, 4)}`, border: `1px solid ${alpha(C.violet, 20)}`,
                     borderRadius: 8, padding: '8px 10px',
                     fontSize: 11, color: C.violet,
                     display: 'flex', alignItems: 'center', gap: 7,
@@ -314,7 +314,7 @@ export function DetailPanel({ selectedNodes, selectedEdge, onClose, onFocus, foc
                     <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
                       {node.data.tableColumns.map((col: string) => (
                         <span key={col} style={{
-                          background: `${C.violet}15`, border: `1px solid ${C.violet}33`,
+                          background: `${alpha(C.violet, 8)}`, border: `1px solid ${alpha(C.violet, 20)}`,
                           borderRadius: 4, padding: '2px 6px',
                           fontSize: 10, fontFamily: 'monospace', color: C.violet,
                         }}>
@@ -346,7 +346,7 @@ export function DetailPanel({ selectedNodes, selectedEdge, onClose, onFocus, foc
                           onClick={() => onNavigateToNode?.(item.id)}
                           onKeyDown={(e) => { if (e.key === 'Enter') onNavigateToNode?.(item.id); }}
                           onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.textDecorationColor = C.accent; }}
-                          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.textDecorationColor = `${C.accent}55`; }}
+                          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.textDecorationColor = `${alpha(C.accent, 33)}`; }}
                         >
                           {item.label}
                         </span>
@@ -367,7 +367,7 @@ export function DetailPanel({ selectedNodes, selectedEdge, onClose, onFocus, foc
                           onClick={() => onNavigateToNode?.(item.id)}
                           onKeyDown={(e) => { if (e.key === 'Enter') onNavigateToNode?.(item.id); }}
                           onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.textDecorationColor = C.accent; }}
-                          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.textDecorationColor = `${C.accent}55`; }}
+                          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.textDecorationColor = `${alpha(C.accent, 33)}`; }}
                         >
                           {item.label}
                         </span>
@@ -528,7 +528,7 @@ export function DetailPanel({ selectedNodes, selectedEdge, onClose, onFocus, foc
                   onClick={() => onNavigateToNode?.(selectedEdge.source)}
                   onKeyDown={(e) => { if (e.key === 'Enter') onNavigateToNode?.(selectedEdge.source); }}
                   onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.textDecorationColor = C.accent; }}
-                  onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.textDecorationColor = `${C.accent}55`; }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.textDecorationColor = `${alpha(C.accent, 33)}`; }}
                 >
                   {srcInfo.sheetName}
                 </span>
@@ -542,7 +542,7 @@ export function DetailPanel({ selectedNodes, selectedEdge, onClose, onFocus, foc
                   onClick={() => onNavigateToNode?.(selectedEdge.target)}
                   onKeyDown={(e) => { if (e.key === 'Enter') onNavigateToNode?.(selectedEdge.target); }}
                   onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.textDecorationColor = C.accent; }}
-                  onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.textDecorationColor = `${C.accent}55`; }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.textDecorationColor = `${alpha(C.accent, 33)}`; }}
                 >
                   {tgtInfo.sheetName}
                 </span>

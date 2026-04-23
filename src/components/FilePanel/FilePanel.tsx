@@ -2,6 +2,7 @@ import { useRef, useState, useEffect } from 'react';
 import type { WorkbookFile } from '../../types';
 import { parseWorkbookFromBuffer, EXCEL_EXTENSIONS } from '../../lib/parser';
 import { formatDuplicateImportNotice, resolveImportedWorkbooks } from './importUtils';
+import { C, alpha } from '../Graph/constants';
 
 interface FilePanelProps {
   workbooks: WorkbookFile[];
@@ -168,7 +169,7 @@ export function FilePanel({ workbooks, onWorkbooksChange, onLocateFile, hiddenFi
   }
 
   return (
-    <div className="flex flex-col h-full" style={{ background: '#0d1017' }}>
+    <div className="flex flex-col h-full" style={{ background: C.bgPanel }}>
 
       {/* Upload zone */}
       <div className="p-3">
@@ -177,24 +178,24 @@ export function FilePanel({ workbooks, onWorkbooksChange, onLocateFile, hiddenFi
           style={
             dragging
               ? {
-                  borderColor: 'rgba(232,68,90,0.6)',
-                  background: 'rgba(232,68,90,0.07)',
-                  boxShadow: 'inset 0 0 24px rgba(232,68,90,0.1)',
+                  borderColor: C.accent,
+                  background: C.accentGlowFaint,
+                  boxShadow: `inset 0 0 24px ${C.accentGlowFaint}`,
                 }
               : {
-                  borderColor: '#1e2535',
+                  borderColor: C.border,
                   background: 'transparent',
                 }
           }
           onMouseEnter={(e) => {
             if (!dragging) {
-              (e.currentTarget as HTMLElement).style.borderColor = 'rgba(232,68,90,0.35)';
-              (e.currentTarget as HTMLElement).style.background = 'rgba(232,68,90,0.04)';
+              (e.currentTarget as HTMLElement).style.borderColor = C.accent;
+              (e.currentTarget as HTMLElement).style.background = C.accentGlowFaint;
             }
           }}
           onMouseLeave={(e) => {
             if (!dragging) {
-              (e.currentTarget as HTMLElement).style.borderColor = '#1e2535';
+              (e.currentTarget as HTMLElement).style.borderColor = C.border;
               (e.currentTarget as HTMLElement).style.background = 'transparent';
             }
           }}
@@ -212,14 +213,14 @@ export function FilePanel({ workbooks, onWorkbooksChange, onLocateFile, hiddenFi
         >
           <div
             className="w-9 h-9 rounded-lg flex items-center justify-center mb-2.5"
-            style={{ background: '#131720', color: dragging ? '#e8445a' : '#4a5568' }}
+            style={{ background: C.surface, color: dragging ? C.accent : C.textMuted }}
           >
             <IconUpload />
           </div>
-          <p className="text-xs text-center leading-relaxed" style={{ color: '#7b8799' }}>
-            Drop <span style={{ color: '#edf0f5', fontWeight: 600 }}>Excel</span> files here
+          <p className="text-xs text-center leading-relaxed" style={{ color: C.textSecondary }}>
+            Drop <span style={{ color: C.textPrimary, fontWeight: 600 }}>Excel</span> files here
             <br />
-            <span style={{ color: '#e8445a', opacity: dragging ? 1 : 0.7 }}>
+            <span style={{ color: C.accent, opacity: dragging ? 1 : 0.7 }}>
               or click to browse
             </span>
           </p>
@@ -240,21 +241,21 @@ export function FilePanel({ workbooks, onWorkbooksChange, onLocateFile, hiddenFi
       {/* Error */}
       {error && (
         <p data-testid="upload-error" className="mx-3 mb-2 text-xs px-2 py-1.5 rounded-lg"
-          style={{ color: '#e8445a', background: 'rgba(232,68,90,0.1)', border: '1px solid rgba(232,68,90,0.2)' }}>
+          style={{ color: C.accent, background: C.accentDim, border: `1px solid ${C.accentGlow}` }}>
           {error}
         </p>
       )}
 
       {notice && (
         <p data-testid="upload-notice" className="mx-3 mb-2 text-xs px-2 py-1.5 rounded-lg"
-          style={{ color: '#fbbf24', background: 'rgba(251,191,36,0.1)', border: '1px solid rgba(251,191,36,0.25)' }}>
+          style={{ color: C.amber, background: C.amberDim, border: `1px solid ${alpha(C.amber, 25)}` }}>
           {notice}
         </p>
       )}
 
       {restoredCount != null && restoredCount > 0 && (
         <p data-testid="restored-notice" className="mx-3 mb-2 text-xs px-2 py-1.5 rounded-lg transition-opacity duration-500"
-          style={{ color: '#34d399', background: 'rgba(52,211,153,0.1)', border: '1px solid rgba(52,211,153,0.25)' }}>
+          style={{ color: C.emerald, background: C.emeraldDim, border: `1px solid ${alpha(C.emerald, 25)}` }}>
           {restoredCount} {restoredCount === 1 ? 'file' : 'files'} restored from last session
         </p>
       )}
@@ -262,24 +263,24 @@ export function FilePanel({ workbooks, onWorkbooksChange, onLocateFile, hiddenFi
       {/* Divider + label */}
       {workbooks.length > 0 && (
         <div className="flex items-center gap-2 px-4 mb-1">
-          <span className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: '#3d4a5c' }}>
+          <span className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: C.textMuted }}>
             Files
           </span>
-          <div className="flex-1 h-px" style={{ background: '#1e2535' }} />
+          <div className="flex-1 h-px" style={{ background: C.border }} />
           {onClearAll && (
             <button
               data-testid="clear-all-files"
               className="text-[10px] font-semibold transition-colors duration-150"
-              style={{ color: '#3d4a5c' }}
-              onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.color = '#e8445a')}
-              onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.color = '#3d4a5c')}
+              style={{ color: C.textMuted }}
+              onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.color = C.accent)}
+              onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.color = C.textMuted)}
               onClick={onClearAll}
               title="Clear all saved files"
             >
               Clear all
             </button>
           )}
-          <span className="text-[10px] font-semibold" style={{ color: '#3d4a5c' }}>
+          <span className="text-[10px] font-semibold" style={{ color: C.textMuted }}>
             {workbooks.length}
           </span>
         </div>
@@ -288,7 +289,7 @@ export function FilePanel({ workbooks, onWorkbooksChange, onLocateFile, hiddenFi
       {/* File list */}
       <div className="flex-1 overflow-y-auto px-2 pb-4">
         {workbooks.length === 0 ? (
-          <p className="text-[11px] text-center mt-3" style={{ color: '#3d4a5c' }}>
+          <p className="text-[11px] text-center mt-3" style={{ color: C.textMuted }}>
             No files yet.
           </p>
         ) : (
@@ -298,27 +299,27 @@ export function FilePanel({ workbooks, onWorkbooksChange, onLocateFile, hiddenFi
               <div
                 data-testid="file-list-item"
                 className="group relative flex items-center justify-between rounded-lg px-2.5 py-2 cursor-pointer transition-all duration-150"
-                style={{ color: '#7b8799' }}
+                style={{ color: C.textSecondary }}
                 onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLElement).style.background = '#131720';
-                  (e.currentTarget as HTMLElement).style.color = '#edf0f5';
+                  (e.currentTarget as HTMLElement).style.background = C.surface;
+                  (e.currentTarget as HTMLElement).style.color = C.textPrimary;
                 }}
                 onMouseLeave={(e) => {
                   (e.currentTarget as HTMLElement).style.background = 'transparent';
-                  (e.currentTarget as HTMLElement).style.color = '#7b8799';
+                  (e.currentTarget as HTMLElement).style.color = C.textSecondary;
                 }}
                 onClick={() => toggleExpand(wb.id)}
               >
                 {/* Left accent flash */}
                 <div
                   className="absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-full transition-opacity duration-150 opacity-0 group-hover:opacity-100"
-                  style={{ background: '#e8445a' }}
+                  style={{ background: C.accent }}
                 />
                 <div className="flex items-center gap-2 min-w-0 pl-1">
-                  <span style={{ color: '#3d4a5c' }}>
+                  <span style={{ color: C.textMuted }}>
                     <IconChevron open={expanded.has(wb.id)} />
                   </span>
-                  <span style={{ color: '#e8445a', opacity: 0.7 }}>
+                  <span style={{ color: C.accent, opacity: 0.7 }}>
                     <IconFile />
                   </span>
                   <span className="text-sm font-medium truncate" style={{ opacity: hiddenFiles?.has(wb.name) ? 0.4 : 1 }}>{wb.originalName}</span>
@@ -328,9 +329,9 @@ export function FilePanel({ workbooks, onWorkbooksChange, onLocateFile, hiddenFi
                     <button
                       data-testid="eye-toggle"
                       className="rounded p-0.5"
-                      style={{ color: hiddenFiles?.has(wb.name) ? '#e8445a' : '#4a5568' }}
-                      onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.color = hiddenFiles?.has(wb.name) ? '#e8445a' : '#7b8799')}
-                      onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.color = hiddenFiles?.has(wb.name) ? '#e8445a' : '#4a5568')}
+                      style={{ color: hiddenFiles?.has(wb.name) ? C.accent : C.textMuted }}
+                      onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.color = hiddenFiles?.has(wb.name) ? C.accent : C.textSecondary)}
+                      onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.color = hiddenFiles?.has(wb.name) ? C.accent : C.textMuted)}
                       onClick={(e) => { e.stopPropagation(); onToggleHidden(wb.name); }}
                       title={hiddenFiles?.has(wb.name) ? 'Show in graph' : 'Hide from graph'}
                     >
@@ -340,9 +341,9 @@ export function FilePanel({ workbooks, onWorkbooksChange, onLocateFile, hiddenFi
                   {onLocateFile && (
                     <button
                       className="rounded p-0.5"
-                      style={{ color: '#4a5568' }}
-                      onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.color = '#818cf8')}
-                      onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.color = '#4a5568')}
+                      style={{ color: C.textMuted }}
+                      onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.color = C.indigo)}
+                      onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.color = C.textMuted)}
                       onClick={(e) => { e.stopPropagation(); onLocateFile(wb.name); }}
                       title="Locate in graph"
                     >
@@ -351,9 +352,9 @@ export function FilePanel({ workbooks, onWorkbooksChange, onLocateFile, hiddenFi
                   )}
                   <button
                     className="rounded p-0.5"
-                    style={{ color: '#4a5568' }}
-                    onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.color = '#e8445a')}
-                    onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.color = '#4a5568')}
+                    style={{ color: C.textMuted }}
+                    onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.color = C.accent)}
+                    onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.color = C.textMuted)}
                     onClick={(e) => { e.stopPropagation(); removeWorkbook(wb.id); }}
                   >
                     <IconClose />
@@ -369,14 +370,14 @@ export function FilePanel({ workbooks, onWorkbooksChange, onLocateFile, hiddenFi
                       key={sheet.sheetName}
                       data-testid="sheet-list-item"
                       className="flex items-center gap-2 px-2.5 py-1.5 rounded-md transition-all duration-150 cursor-default"
-                      style={{ color: '#4a5568' }}
+                      style={{ color: C.textMuted }}
                       onMouseEnter={(e) => {
-                        (e.currentTarget as HTMLElement).style.background = '#131720';
-                        (e.currentTarget as HTMLElement).style.color = '#7b8799';
+                        (e.currentTarget as HTMLElement).style.background = C.surface;
+                        (e.currentTarget as HTMLElement).style.color = C.textSecondary;
                       }}
                       onMouseLeave={(e) => {
                         (e.currentTarget as HTMLElement).style.background = 'transparent';
-                        (e.currentTarget as HTMLElement).style.color = '#4a5568';
+                        (e.currentTarget as HTMLElement).style.color = C.textMuted;
                       }}
                     >
                       <IconSheet />
@@ -384,7 +385,7 @@ export function FilePanel({ workbooks, onWorkbooksChange, onLocateFile, hiddenFi
                       {sheet.references.length > 0 && (
                         <span
                           className="text-[10px] font-semibold shrink-0 px-1.5 py-0.5 rounded-full"
-                          style={{ color: '#e8445a', background: 'rgba(232,68,90,0.12)' }}
+                          style={{ color: C.accent, background: C.accentDim }}
                         >
                           {sheet.references.length}
                         </span>

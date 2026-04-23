@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { LayoutAlgorithm, LayoutDirection } from '../../lib/graph';
-import { C } from './constants';
+import { C, alpha } from './constants';
 import { toolbarButtonBaseStyle, toolbarDividerStyle, toolbarGroupStyle, toolbarRowStyle } from './toolbarStyles';
 
 // ── Circular Reference Warning Badge ─────────────────────────────────────────
@@ -112,7 +112,7 @@ function CycleWarningBadge({
                     justifyContent: 'flex-start',
                     background: isActive ? C.amberDim : 'transparent',
                     color: isActive ? C.amber : C.textSecondary,
-                    border: `1px solid ${isActive ? `${C.amber}44` : 'transparent'}`,
+                    border: `1px solid ${isActive ? `${alpha(C.amber, 27)}` : 'transparent'}`,
                     boxShadow: isActive ? `0 0 8px ${C.amberGlow}` : 'none',
                     padding: '6px 8px',
                     fontSize: 11,
@@ -124,7 +124,7 @@ function CycleWarningBadge({
                   onMouseEnter={(e) => { if (!isActive) (e.currentTarget as HTMLButtonElement).style.color = C.textPrimary; }}
                   onMouseLeave={(e) => { if (!isActive) (e.currentTarget as HTMLButtonElement).style.color = C.textSecondary; }}
                 >
-                  <span style={{ color: C.amberDim.replace('0.15', '0.7'), marginRight: 6, fontWeight: 700, fontSize: 10, flexShrink: 0 }}>
+                  <span style={{ color: C.amber, opacity: 0.8, marginRight: 6, fontWeight: 700, fontSize: 10, flexShrink: 0 }}>
                     {i + 1}.
                   </span>
                   {chain}
@@ -441,7 +441,7 @@ export function Toolbar({
                               alignItems: 'flex-start',
                               minWidth: 0,
                               padding: '8px 10px',
-                              background: layoutAlgorithm === algorithm ? `${C.accent}22` : 'transparent',
+                              background: layoutAlgorithm === algorithm ? `${alpha(C.accent, 13)}` : 'transparent',
                               color: layoutAlgorithm === algorithm ? C.textPrimary : C.textSecondary,
                               border: `1px solid ${layoutAlgorithm === algorithm ? C.accent : C.border}`,
                               boxShadow: layoutAlgorithm === algorithm ? `0 0 10px ${C.accentGlow}` : 'none',

@@ -2,18 +2,19 @@ import { useState } from 'react';
 import { Handle, Position, type Node, type NodeProps } from '@xyflow/react';
 import type { NodeData } from '../../lib/graph';
 import { stripExcelExt } from '../../lib/graph';
-import { C } from './constants';
+import { C, alpha } from './constants';
 
 export function SheetNode({ data, selected }: NodeProps<Node<NodeData>>) {
   const [hovered, setHovered] = useState(false);
   const isExt = data.isExternal;
   const accent = isExt ? C.amber : C.accent;
   const accentGlow = isExt ? C.amberGlow : C.accentGlow;
+  const accentGlowFaint = isExt ? C.amberGlowFaint : C.accentGlowFaint;
 
   const containerStyle: React.CSSProperties = {
-    background: selected ? C.surfaceRaised : hovered ? '#161b25' : C.surface,
+    background: selected ? C.surfaceRaised : hovered ? C.surfaceHi : C.surface,
     border: `1.5px solid ${selected ? accent : hovered ? C.borderHover : C.border}`,
-    borderRadius: 14,
+    borderRadius: 'var(--tg-node-radius)',
     padding: '10px 14px 10px 18px',
     minWidth: 170,
     cursor: 'pointer',
@@ -22,7 +23,7 @@ export function SheetNode({ data, selected }: NodeProps<Node<NodeData>>) {
     boxShadow: selected
       ? `0 0 0 1px ${accent}, 0 0 24px ${accentGlow}, 0 8px 32px rgba(0,0,0,0.5)`
       : hovered
-        ? `0 0 16px ${accentGlow.replace('0.3', '0.12')}, 0 4px 16px rgba(0,0,0,0.4)`
+        ? `0 0 16px ${accentGlowFaint}, 0 4px 16px rgba(0,0,0,0.4)`
         : '0 2px 8px rgba(0,0,0,0.3)',
   };
 
@@ -47,18 +48,18 @@ export function SheetNode({ data, selected }: NodeProps<Node<NodeData>>) {
     return (
       <div data-testid="sheet-node"
         style={{
-          background: selected ? C.surfaceRaised : hovered ? '#161b25' : C.surface,
-          border: `1.5px solid ${selected ? C.violet : hovered ? `${C.violet}88` : `${C.violet}44`}`,
-          borderRadius: 14,
+          background: selected ? C.surfaceRaised : hovered ? C.surfaceHi : C.surface,
+          border: `1.5px solid ${selected ? C.violet : hovered ? `${alpha(C.violet, 53)}` : `${alpha(C.violet, 27)}`}`,
+          borderRadius: 'var(--tg-node-radius)',
           padding: '10px 14px 10px 18px',
           minWidth: 160,
           cursor: 'pointer',
           transition: 'all 0.15s ease',
           position: 'relative',
           boxShadow: selected
-            ? `0 0 0 1px ${C.violet}66, 0 0 24px ${C.violetGlow}, 0 8px 32px rgba(0,0,0,0.5)`
+            ? `0 0 0 1px ${alpha(C.violet, 40)}, 0 0 24px ${C.violetGlow}, 0 8px 32px rgba(0,0,0,0.5)`
             : hovered
-              ? `0 0 16px ${C.violetGlow.replace('0.3', '0.12')}, 0 4px 16px rgba(0,0,0,0.4)`
+              ? `0 0 16px ${C.violetGlowFaint}, 0 4px 16px rgba(0,0,0,0.4)`
               : '0 2px 8px rgba(0,0,0,0.3)',
         }}
         onMouseEnter={() => setHovered(true)}
@@ -68,7 +69,7 @@ export function SheetNode({ data, selected }: NodeProps<Node<NodeData>>) {
         <div style={{
           position: 'absolute', left: 0, top: 10, bottom: 10,
           width: 3, borderRadius: '0 3px 3px 0',
-          background: selected ? C.violet : hovered ? `${C.violet}99` : `${C.violet}55`,
+          background: selected ? C.violet : hovered ? `${alpha(C.violet, 60)}` : `${alpha(C.violet, 33)}`,
           transition: 'background 0.15s',
           boxShadow: selected ? `0 0 8px ${C.violetGlow}` : 'none',
         }} />
@@ -101,7 +102,7 @@ export function SheetNode({ data, selected }: NodeProps<Node<NodeData>>) {
             <span style={{
               fontSize: 10, fontWeight: 600,
               color: C.violet, background: C.violetDim,
-              border: `1px solid ${C.violet}33`,
+              border: `1px solid ${alpha(C.violet, 20)}`,
               borderRadius: 99, padding: '2px 7px',
               display: 'inline-flex', alignItems: 'center', gap: 3,
             }}>
@@ -111,8 +112,8 @@ export function SheetNode({ data, selected }: NodeProps<Node<NodeData>>) {
           {data.incomingCount > 0 && (
             <span style={{
               fontSize: 10, fontWeight: 600,
-              color: C.textSecondary, background: '#1e2535',
-              border: `1px solid #2a3347`,
+              color: C.textSecondary, background: C.surfaceHi,
+              border: `1px solid ${C.borderHover}`,
               borderRadius: 99, padding: '2px 7px',
               display: 'inline-flex', alignItems: 'center', gap: 3,
             }}>
@@ -138,18 +139,18 @@ export function SheetNode({ data, selected }: NodeProps<Node<NodeData>>) {
     return (
       <div data-testid="sheet-node"
         style={{
-          background: selected ? C.surfaceRaised : hovered ? '#161b25' : C.surface,
-          border: `1.5px solid ${selected ? C.emerald : hovered ? `${C.emerald}88` : `${C.emerald}44`}`,
-          borderRadius: 14,
+          background: selected ? C.surfaceRaised : hovered ? C.surfaceHi : C.surface,
+          border: `1.5px solid ${selected ? C.emerald : hovered ? `${alpha(C.emerald, 53)}` : `${alpha(C.emerald, 27)}`}`,
+          borderRadius: 'var(--tg-node-radius)',
           padding: '10px 14px 10px 18px',
           minWidth: 160,
           cursor: 'pointer',
           transition: 'all 0.15s ease',
           position: 'relative',
           boxShadow: selected
-            ? `0 0 0 1px ${C.emerald}66, 0 0 24px ${C.emeraldGlow}, 0 8px 32px rgba(0,0,0,0.5)`
+            ? `0 0 0 1px ${alpha(C.emerald, 40)}, 0 0 24px ${C.emeraldGlow}, 0 8px 32px rgba(0,0,0,0.5)`
             : hovered
-              ? `0 0 16px ${C.emeraldGlow.replace('0.3', '0.12')}, 0 4px 16px rgba(0,0,0,0.4)`
+              ? `0 0 16px ${C.emeraldGlowFaint}, 0 4px 16px rgba(0,0,0,0.4)`
               : '0 2px 8px rgba(0,0,0,0.3)',
         }}
         onMouseEnter={() => setHovered(true)}
@@ -159,7 +160,7 @@ export function SheetNode({ data, selected }: NodeProps<Node<NodeData>>) {
         <div style={{
           position: 'absolute', left: 0, top: 10, bottom: 10,
           width: 3, borderRadius: '0 3px 3px 0',
-          background: selected ? C.emerald : hovered ? `${C.emerald}99` : `${C.emerald}55`,
+          background: selected ? C.emerald : hovered ? `${alpha(C.emerald, 60)}` : `${alpha(C.emerald, 33)}`,
           transition: 'background 0.15s',
           boxShadow: selected ? `0 0 8px ${C.emeraldGlow}` : 'none',
         }} />
@@ -193,7 +194,7 @@ export function SheetNode({ data, selected }: NodeProps<Node<NodeData>>) {
             <span style={{
               fontSize: 10, fontWeight: 600,
               color: C.emerald, background: C.emeraldDim,
-              border: `1px solid ${C.emerald}33`,
+              border: `1px solid ${alpha(C.emerald, 20)}`,
               borderRadius: 99, padding: '2px 7px',
               display: 'inline-flex', alignItems: 'center', gap: 3,
             }}>
@@ -203,8 +204,8 @@ export function SheetNode({ data, selected }: NodeProps<Node<NodeData>>) {
           {data.incomingCount > 0 && (
             <span style={{
               fontSize: 10, fontWeight: 600,
-              color: C.textSecondary, background: '#1e2535',
-              border: `1px solid #2a3347`,
+              color: C.textSecondary, background: C.surfaceHi,
+              border: `1px solid ${C.borderHover}`,
               borderRadius: 99, padding: '2px 7px',
               display: 'inline-flex', alignItems: 'center', gap: 3,
             }}>
@@ -223,18 +224,18 @@ export function SheetNode({ data, selected }: NodeProps<Node<NodeData>>) {
     return (
       <div data-testid="sheet-node"
         style={{
-          background: selected ? C.surfaceRaised : hovered ? '#161b25' : C.surface,
-          border: `1.5px dashed ${selected ? C.amber : hovered ? `${C.amber}88` : `${C.amber}44`}`,
-          borderRadius: 14,
+          background: selected ? C.surfaceRaised : hovered ? C.surfaceHi : C.surface,
+          border: `1.5px dashed ${selected ? C.amber : hovered ? `${alpha(C.amber, 53)}` : `${alpha(C.amber, 27)}`}`,
+          borderRadius: 'var(--tg-node-radius)',
           padding: '10px 14px 10px 18px',
           minWidth: 160,
           cursor: 'pointer',
           transition: 'all 0.15s ease',
           position: 'relative',
           boxShadow: selected
-            ? `0 0 0 1px ${C.amber}66, 0 0 24px ${C.amberGlow}, 0 8px 32px rgba(0,0,0,0.5)`
+            ? `0 0 0 1px ${alpha(C.amber, 40)}, 0 0 24px ${C.amberGlow}, 0 8px 32px rgba(0,0,0,0.5)`
             : hovered
-              ? `0 0 16px ${C.amberGlow.replace('0.3', '0.12')}, 0 4px 16px rgba(0,0,0,0.4)`
+              ? `0 0 16px ${C.amberGlowFaint}, 0 4px 16px rgba(0,0,0,0.4)`
               : '0 2px 8px rgba(0,0,0,0.3)',
         }}
         onMouseEnter={() => setHovered(true)}
@@ -244,7 +245,7 @@ export function SheetNode({ data, selected }: NodeProps<Node<NodeData>>) {
         <div style={{
           position: 'absolute', left: 0, top: 10, bottom: 10,
           width: 3, borderRadius: '0 3px 3px 0',
-          background: selected ? C.amber : hovered ? `${C.amber}99` : `${C.amber}55`,
+          background: selected ? C.amber : hovered ? `${alpha(C.amber, 60)}` : `${alpha(C.amber, 33)}`,
           transition: 'background 0.15s',
           boxShadow: selected ? `0 0 8px ${C.amberGlow}` : 'none',
         }} />
@@ -277,7 +278,7 @@ export function SheetNode({ data, selected }: NodeProps<Node<NodeData>>) {
             <span style={{
               fontSize: 10, fontWeight: 600,
               color: C.amber, background: C.amberDim,
-              border: `1px solid ${C.amber}33`,
+              border: `1px solid ${alpha(C.amber, 20)}`,
               borderRadius: 99, padding: '2px 7px',
               display: 'inline-flex', alignItems: 'center', gap: 3,
             }}>
@@ -351,7 +352,7 @@ export function SheetNode({ data, selected }: NodeProps<Node<NodeData>>) {
           <span style={{
             fontSize: 10, fontWeight: 600,
             color: C.textPrimary,
-            background: '#1a2030',
+            background: C.surfaceHi,
             border: `1px solid ${C.border}`,
             borderRadius: 99, padding: '2px 7px',
             display: 'inline-flex', alignItems: 'center', gap: 3,
@@ -365,7 +366,7 @@ export function SheetNode({ data, selected }: NodeProps<Node<NodeData>>) {
             fontSize: 10, fontWeight: 600,
             color: C.accent,
             background: C.accentDim,
-            border: `1px solid ${C.accent}33`,
+            border: `1px solid ${alpha(C.accent, 20)}`,
             borderRadius: 99, padding: '2px 7px',
             display: 'inline-flex', alignItems: 'center', gap: 3,
           }}>
@@ -376,8 +377,8 @@ export function SheetNode({ data, selected }: NodeProps<Node<NodeData>>) {
           <span style={{
             fontSize: 10, fontWeight: 600,
             color: C.textSecondary,
-            background: '#1e2535',
-            border: `1px solid #2a3347`,
+            background: C.surfaceHi,
+            border: `1px solid ${C.borderHover}`,
             borderRadius: 99, padding: '2px 7px',
             display: 'inline-flex', alignItems: 'center', gap: 3,
           }}>
@@ -389,7 +390,7 @@ export function SheetNode({ data, selected }: NodeProps<Node<NodeData>>) {
             fontSize: 10, fontWeight: 600,
             color: C.amber,
             background: C.amberDim,
-            border: `1px solid ${C.amber}33`,
+            border: `1px solid ${alpha(C.amber, 20)}`,
             borderRadius: 99, padding: '2px 7px',
           }}>
             external

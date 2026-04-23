@@ -25,7 +25,7 @@ import type { WorkbookFile } from '../../types';
 import { applyLayoutAlgorithm, buildGraph, type NodeData, type EdgeData, type LayoutMode, type LayoutDirection, type LayoutAlgorithm } from '../../lib/graph';
 import { buildDependencyGraph, detectCycles } from '../../lib/resolver';
 import { findAllPaths, type PathResult } from '../../lib/pathfinder';
-import { C } from './constants';
+import { C, alpha } from './constants';
 import { edgeStrokeWidth, edgeAccentColor, edgeRestColor } from './edge-helpers';
 import { WeightedEdge } from './WeightedEdge';
 import { SheetNode } from './SheetNode';
@@ -710,7 +710,7 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
                 onClick={() => setShowNamedRanges((v) => !v)}
                 style={{
                   ...toolbarButtonBaseStyle,
-                  background: showNamedRanges ? `${C.emerald}22` : 'transparent',
+                  background: showNamedRanges ? `${alpha(C.emerald, 13)}` : 'transparent',
                   color: showNamedRanges ? C.emerald : C.textMuted,
                   boxShadow: showNamedRanges ? `0 0 8px ${C.emeraldGlow}` : 'none',
                 }}
@@ -829,7 +829,7 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
           position: 'absolute', top: 12, right: 16, zIndex: 10,
           display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px',
           background: C.bgPanel,
-          border: `1px solid ${C.accent}44`,
+          border: `1px solid ${alpha(C.accent, 27)}`,
           borderRadius: 10,
           boxShadow: `0 4px 20px rgba(0,0,0,0.6), 0 0 12px ${C.accentGlow}`,
         }}>

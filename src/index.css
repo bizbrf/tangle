@@ -295,6 +295,111 @@ html, body, #root {
 :root[data-theme="dense"] .react-flow__node { font-family: var(--tg-font-mono); }
 :root[data-theme="dense"] .react-flow__edge-text { font-family: var(--tg-font-mono) !important; }
 
+/* Dense: ruler gutter strips. Decorative — tick spacing is fixed, not tied to
+   canvas coordinates. Hidden in non-dense themes via the conditional render. */
+.tg-ruler {
+  position: absolute;
+  pointer-events: none;
+  z-index: 5;
+  display: flex;
+  background: color-mix(in srgb, var(--tg-bg-panel) 70%, transparent);
+  border: 1px solid var(--tg-border);
+  font-family: var(--tg-font-mono);
+  font-size: 9px;
+  color: var(--tg-text-muted);
+  overflow: hidden;
+}
+.tg-ruler-top {
+  top: 0; left: 28px; right: 0;
+  height: 16px;
+  flex-direction: row;
+}
+.tg-ruler-left {
+  top: 16px; left: 0;
+  width: 28px; bottom: 24px;
+  flex-direction: column;
+}
+.tg-tick {
+  flex: 0 0 20px;
+  border-right: 1px solid color-mix(in srgb, var(--tg-border) 50%, transparent);
+  position: relative;
+}
+.tg-ruler-left .tg-tick {
+  flex: 0 0 20px;
+  border-right: none;
+  border-bottom: 1px solid color-mix(in srgb, var(--tg-border) 50%, transparent);
+}
+.tg-tick-major {
+  border-right-color: var(--tg-border-strong);
+}
+.tg-ruler-left .tg-tick-major {
+  border-bottom-color: var(--tg-border-strong);
+}
+.tg-tick-label {
+  position: absolute;
+  top: 2px;
+  left: 3px;
+  letter-spacing: 0.04em;
+}
+/* Left ruler: horizontal numbers (no rotation — vertical-rl was unreadable) */
+.tg-ruler-left .tg-tick-label {
+  top: 3px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 8px;
+}
+
+/* Dense: bottom hotkey strip. Pinned to the canvas bottom, mono-spaced. */
+.tg-hotkey-strip {
+  position: absolute;
+  bottom: 0; left: 28px; right: 0;
+  height: 24px;
+  z-index: 5;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 0 12px;
+  background: color-mix(in srgb, var(--tg-bg-panel) 85%, transparent);
+  border-top: 1px solid var(--tg-border);
+  font-family: var(--tg-font-mono);
+  font-size: 10px;
+  color: var(--tg-text-muted);
+  overflow-x: auto;
+  white-space: nowrap;
+}
+.tg-hotkey-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.tg-hotkey-key {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  background: var(--tg-surface-hi);
+  border: 1px solid var(--tg-border);
+  border-radius: 3px;
+  font-size: 9px;
+  font-family: var(--tg-font-mono);
+  color: var(--tg-text-secondary);
+  letter-spacing: 0.03em;
+}
+.tg-hotkey-label {
+  font-size: 10px;
+  color: var(--tg-text-muted);
+  letter-spacing: 0.02em;
+}
+
+/* Dense ruler/strip nudge sibling overlays so the Legend and MiniMap don't
+   collide with them. Scoped to dense via the parent attribute. */
+:root[data-theme="dense"] .react-flow__minimap {
+  bottom: 30px !important;
+}
+:root[data-theme="dense"] .tg-legend {
+  bottom: 32px !important;
+}
+
 /* Cinematic: gentle pulse on the selected node */
 @keyframes tg-cinematic-pulse {
   0%, 100% {

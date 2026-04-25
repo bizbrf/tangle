@@ -24,7 +24,7 @@ function LegendRow({ color, label, isEdge = false }: { color: string; label: str
 
 export function Legend({ showNamedRanges, showTables }: { showNamedRanges?: boolean; showTables?: boolean }) {
   return (
-    <div style={{
+    <div className="tg-legend" style={{
       position: 'absolute', bottom: 16, left: 16, zIndex: 10,
       background: C.bgPanel,
       border: `1px solid ${C.border}`,

@@ -52,3 +52,4 @@ STATUS.md
 # committed assets live in screenshots/)
 /v2-*.png
 /playwright-report/
+bug-bash/

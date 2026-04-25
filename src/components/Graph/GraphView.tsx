@@ -108,6 +108,57 @@ function StarfieldBackground() {
   );
 }
 
+// ── Dense theme chrome — ruler gutter + bottom hotkey strip ──────────────────
+
+function RulerGutter() {
+  // Tick density: major every 100px, minor every 20px. Decorative, not tied to
+  // canvas coordinates — they signal "precision tool" without the cost of
+  // tracking viewport transforms.
+  const ticks = Array.from({ length: 60 }, (_, i) => i);
+  return (
+    <>
+      <div className="tg-ruler tg-ruler-top" aria-hidden="true">
+        {ticks.map((i) => (
+          <div key={i} className={i % 5 === 0 ? 'tg-tick tg-tick-major' : 'tg-tick'}>
+            {i % 5 === 0 ? <span className="tg-tick-label">{i * 100}</span> : null}
+          </div>
+        ))}
+      </div>
+      <div className="tg-ruler tg-ruler-left" aria-hidden="true">
+        {ticks.map((i) => (
+          <div key={i} className={i % 5 === 0 ? 'tg-tick tg-tick-major' : 'tg-tick'}>
+            {i % 5 === 0 ? <span className="tg-tick-label">{i * 100}</span> : null}
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
+
+function HotkeyStrip() {
+  // Keys + actions match the keyboard handler in GraphViewInner below. Keep in
+  // sync with the switch on `e.key` so the strip never lies.
+  const items: { key: string; label: string }[] = [
+    { key: 'G', label: 'view' },
+    { key: 'L', label: 'layout' },
+    { key: 'F', label: 'fit' },
+    { key: 'Ctrl+F', label: 'search' },
+    { key: 'Shift+click', label: 'multi-select' },
+    { key: 'Ctrl+\\', label: 'theme' },
+    { key: 'Esc', label: 'clear' },
+  ];
+  return (
+    <div className="tg-hotkey-strip" aria-hidden="true">
+      {items.map(({ key, label }) => (
+        <span key={key} className="tg-hotkey-item">
+          <kbd className="tg-hotkey-key">{key}</kbd>
+          <span className="tg-hotkey-label">{label}</span>
+        </span>
+      ))}
+    </div>
+  );
+}
+
 // ── Main Component ────────────────────────────────────────────────────────────
 
 interface GraphViewProps {
@@ -728,6 +779,9 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
           nodeStrokeWidth={0}
         />
       </ReactFlow>
+
+      {theme.chrome.gutter && <RulerGutter />}
+      {theme.chrome.statusStrip && <HotkeyStrip />}
 
       <div style={toolbarStackStyle}>
         <Toolbar

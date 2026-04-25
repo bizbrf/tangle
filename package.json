@@ -1,7 +1,7 @@
 {
   "name": "tangle",
   "private": true,
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Visualize references within and between Excel files as an interactive node graph",
   "type": "module",
   "author": "Chase Stoker",

@@ -5,6 +5,20 @@ All notable changes to Tangle will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [2.0.1] - 2026-04-25
+
+### Added
+
+- **Dense theme chrome** — the design-handoff details that didn't make v2.0.0:
+  - **Ruler gutter strips** on the canvas top + left edges, mono-spaced tick labels at 100px intervals.
+  - **Bottom hotkey strip** pinned to the canvas bottom listing the active keyboard shortcuts (`G`/`L`/`F`/`Ctrl+F`/`Shift+click`/`Ctrl+\`/`Esc`).
+  - Both render only when `theme.chrome.gutter` / `theme.chrome.statusStrip` are true (Dense only); Refined and Cinematic are unchanged.
+
+### Fixed
+
+- E2E-31 / E2E-32 multi-select tests flaked on Linux runners because separate `keyboard.down('Shift')` / `keyboard.up()` actions could race the click. Now uses Playwright's `modifiers: ['Shift']` for atomic shift-click.
+- Dense theme's `MiniMap` and `Legend` overlays now lift above the bottom hotkey strip instead of overlapping it.
+
 ## [2.0.0] - 2026-04-25
 
 ### Added — Theme system

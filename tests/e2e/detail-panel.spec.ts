@@ -59,9 +59,9 @@ test('E2E-31: multi-select panel close button dismisses reliably', async ({ page
 
   const nodes = page.getByTestId('sheet-node')
   await nodes.first().click({ force: true })
-  await page.keyboard.down('Shift')
-  await nodes.nth(1).click({ force: true })
-  await page.keyboard.up('Shift')
+  // Apply Shift atomically with the click — separate keyboard.down/up races
+  // on Linux runners where the Shift release lands before the click registers.
+  await nodes.nth(1).click({ force: true, modifiers: ['Shift'] })
 
   await expect(page.getByTestId('detail-panel-title')).toContainText('selected')
   await page.getByTestId('detail-panel-close').click({ force: true })
@@ -74,9 +74,7 @@ test('E2E-32: pane click clears multi-select panel', async ({ page }) => {
 
   const nodes = page.getByTestId('sheet-node')
   await nodes.first().click({ force: true })
-  await page.keyboard.down('Shift')
-  await nodes.nth(1).click({ force: true })
-  await page.keyboard.up('Shift')
+  await nodes.nth(1).click({ force: true, modifiers: ['Shift'] })
 
   await expect(page.getByTestId('detail-panel-title')).toContainText('selected')
   await page.locator('.react-flow__pane').click({ position: { x: 50, y: 50 }, force: true })

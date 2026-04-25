@@ -7,6 +7,7 @@ export const THEMES: Record<ThemeId, Theme> = {
     description: 'Polished dark with curved edges and dot grid. Tangle’s original look.',
     edge: { type: 'default' },
     canvas: { pattern: 'dots', gap: 24, size: 1 },
+    chrome: { gutter: false, statusStrip: false },
   },
   dense: {
     id: 'dense',
@@ -14,6 +15,7 @@ export const THEMES: Record<ThemeId, Theme> = {
     description: 'Mono-forward, sharp corners, denser line grid for power users.',
     edge: { type: 'smoothstep' },
     canvas: { pattern: 'lines', gap: 40, size: 1 },
+    chrome: { gutter: true, statusStrip: true },
   },
   cinematic: {
     id: 'cinematic',
@@ -21,6 +23,7 @@ export const THEMES: Record<ThemeId, Theme> = {
     description: 'Full-bleed starfield with floating glass panels and edges colored by reference kind.',
     edge: { type: 'default' },
     canvas: { pattern: 'stars', gap: 48, size: 1 },
+    chrome: { gutter: false, statusStrip: false },
   },
 };
 

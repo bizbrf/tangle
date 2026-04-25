@@ -28,4 +28,10 @@ export interface Theme {
     gap: number;
     size: number;
   };
+  chrome: {
+    /** Render coordinate-style ruler strips on the canvas edges (Dense). */
+    gutter: boolean;
+    /** Render a hotkey reference strip pinned to the canvas bottom (Dense). */
+    statusStrip: boolean;
+  };
 }

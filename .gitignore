@@ -36,6 +36,9 @@ test-results/
 # GSD planning docs (local only)
 .planning/
 
+# Per-session handoff doc Claude writes when pausing work mid-task
+.continue-here.md
+
 # Live status board — local working doc, not part of the repo history
 STATUS.md
 

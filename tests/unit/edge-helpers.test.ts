@@ -58,48 +58,49 @@ describe('EDGE-01: edgeStrokeWidth — stroke width scaling', () => {
 })
 
 // ── EDGE-02: edgeAccentColor ──────────────────────────────────────────────────
+// v2.0.0: colors now resolve to CSS custom properties so they swap per theme.
 
-describe('EDGE-02: edgeAccentColor — kind to accent color mapping', () => {
-  it('returns coral-red (#e8445a) for "internal" edges', () => {
-    expect(edgeAccentColor('internal')).toBe('#e8445a')
+describe('EDGE-02: edgeAccentColor — kind to accent token mapping', () => {
+  it('returns the cross-sheet token for "internal" edges', () => {
+    expect(edgeAccentColor('internal')).toBe('var(--tg-edge-cross-sheet)')
   })
 
-  it('returns indigo (#818cf8) for "cross-file" edges', () => {
-    expect(edgeAccentColor('cross-file')).toBe('#818cf8')
+  it('returns the cross-file token for "cross-file" edges', () => {
+    expect(edgeAccentColor('cross-file')).toBe('var(--tg-edge-cross-file)')
   })
 
-  it('returns amber (#f59e0b) for "external" edges', () => {
-    expect(edgeAccentColor('external')).toBe('#f59e0b')
+  it('returns the external token for "external" edges', () => {
+    expect(edgeAccentColor('external')).toBe('var(--tg-edge-external)')
   })
 
-  it('returns emerald (#10b981) for "named-range" edges', () => {
-    expect(edgeAccentColor('named-range')).toBe('#10b981')
+  it('returns the named-range token for "named-range" edges', () => {
+    expect(edgeAccentColor('named-range')).toBe('var(--tg-edge-named)')
   })
 
-  it('returns violet (#a78bfa) for "table" edges', () => {
-    expect(edgeAccentColor('table')).toBe('#a78bfa')
+  it('returns the table token for "table" edges', () => {
+    expect(edgeAccentColor('table')).toBe('var(--tg-edge-table)')
   })
 
-  it('returns different colors for each edge kind', () => {
+  it('returns distinct tokens for each edge kind', () => {
     const kinds = ['internal', 'cross-file', 'external', 'named-range', 'table'] as const
-    const colors = kinds.map(edgeAccentColor)
-    const uniqueColors = new Set(colors)
-    expect(uniqueColors.size).toBe(kinds.length)
+    const tokens = kinds.map(edgeAccentColor)
+    expect(new Set(tokens).size).toBe(kinds.length)
   })
 })
 
 // ── EDGE-03: edgeRestColor ────────────────────────────────────────────────────
+// v2.0.0: `color-mix(in srgb, <token> <pct>%, transparent)` replaces legacy rgba.
 
 describe('EDGE-03: edgeRestColor — kind to resting color mapping', () => {
-  it('returns an rgba(...) string', () => {
-    expect(edgeRestColor('internal', 1)).toMatch(/^rgba\(/)
-    expect(edgeRestColor('cross-file', 1)).toMatch(/^rgba\(/)
-    expect(edgeRestColor('external', 1)).toMatch(/^rgba\(/)
-    expect(edgeRestColor('named-range', 1)).toMatch(/^rgba\(/)
-    expect(edgeRestColor('table', 1)).toMatch(/^rgba\(/)
+  it('returns a color-mix(...) string that references the kind token', () => {
+    expect(edgeRestColor('internal', 1)).toMatch(/^color-mix\(.*var\(--tg-edge-cross-sheet\)/)
+    expect(edgeRestColor('cross-file', 1)).toMatch(/^color-mix\(.*var\(--tg-edge-cross-file\)/)
+    expect(edgeRestColor('external', 1)).toMatch(/^color-mix\(.*var\(--tg-edge-external\)/)
+    expect(edgeRestColor('named-range', 1)).toMatch(/^color-mix\(.*var\(--tg-edge-named\)/)
+    expect(edgeRestColor('table', 1)).toMatch(/^color-mix\(.*var\(--tg-edge-table\)/)
   })
 
-  it('returns different colors for different edge kinds', () => {
+  it('returns different strings for different edge kinds', () => {
     const internal = edgeRestColor('internal', 1)
     const crossFile = edgeRestColor('cross-file', 1)
     const external = edgeRestColor('external', 1)
@@ -108,17 +109,23 @@ describe('EDGE-03: edgeRestColor — kind to resting color mapping', () => {
     expect(crossFile).not.toBe(external)
   })
 
-  it('opacity increases with higher refCount (not the same for 1 vs 20)', () => {
+  it('mix percentage increases with higher refCount (not the same for 1 vs 20)', () => {
     const low = edgeRestColor('internal', 1)
     const high = edgeRestColor('internal', 20)
     expect(low).not.toBe(high)
   })
 
-  it('opacity caps at 0.55 (high refCount produces same result as very high refCount)', () => {
-    // Both should reach the cap — we just verify they are the same string
+  it('mix percentage caps (high refCount matches very high refCount)', () => {
     const high = edgeRestColor('internal', 100)
     const veryHigh = edgeRestColor('internal', 10000)
     expect(high).toBe(veryHigh)
+  })
+
+  it('mix percentage has a floor of 20% at refCount=0/1', () => {
+    // Match the percentage out of `color-mix(in srgb, <token> NN%, transparent)`.
+    const m = edgeRestColor('internal', 0).match(/(\d+)%/)
+    expect(m).not.toBeNull()
+    expect(Number(m![1])).toBeGreaterThanOrEqual(20)
   })
 })
 

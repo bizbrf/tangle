@@ -10,9 +10,11 @@ function readStored(): ThemeId {
   if (typeof window === 'undefined') return DEFAULT_THEME;
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
+    // Validate against THEME_IDS so hand-edited localStorage and pre-v2
+    // leftover values fall back to the default instead of crashing the app.
     if (raw && (THEME_IDS as readonly string[]).includes(raw)) return raw as ThemeId;
   } catch {
-    // localStorage blocked — fall through
+    // localStorage blocked (private browsing, sandboxed iframe) — fall through.
   }
   return DEFAULT_THEME;
 }
@@ -30,8 +32,8 @@ export function ThemeProvider({ children, initial }: ThemeProviderProps) {
     document.documentElement.setAttribute('data-theme', themeId);
     try {
       window.localStorage.setItem(STORAGE_KEY, themeId);
-    } catch {
-      // ignore
+    } catch (err) {
+      console.warn('[tangle] theme persistence failed — choice will not survive refresh:', err);
     }
   }, [themeId]);
 

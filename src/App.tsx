@@ -5,6 +5,7 @@ import { TangleLogo } from './components/ui/TangleLogo';
 import { saveFile, loadAllFiles, removeFile, clearAllFiles } from './lib/storage';
 import { parseWorkbookFromBuffer } from './lib/parser';
 import { resolveImportedWorkbooks } from './components/FilePanel/importUtils';
+import { C } from './components/Graph/constants';
 import type { WorkbookFile } from './types';
 
 export default function App() {
@@ -12,9 +13,10 @@ export default function App() {
   const [highlightedFile, setHighlightedFile] = useState<string | null>(null);
   const [hiddenFiles, setHiddenFiles] = useState<Set<string>>(new Set());
   const [restoredCount, setRestoredCount] = useState(0);
+  const [restoreError, setRestoreError] = useState<string | null>(null);
   const restoringRef = useRef(false);
 
-  // Restore files from IndexedDB on mount
+  // Restore files from IndexedDB on mount.
   useEffect(() => {
     let cancelled = false;
     async function restore() {
@@ -29,8 +31,11 @@ export default function App() {
         const { workbooks: resolved } = resolveImportedWorkbooks([], parsed);
         setWorkbooks(resolved);
         setRestoredCount(resolved.length);
-      } catch {
-        // Graceful — just start empty
+      } catch (err) {
+        if (!cancelled) {
+          console.warn('[tangle] restore from IndexedDB failed:', err);
+          setRestoreError('Could not restore previous files. Starting empty.');
+        }
       }
     }
     restore();
@@ -48,22 +53,25 @@ export default function App() {
           return copy;
         });
       }
-      // Remove deleted files from IndexedDB
+      // Side-effect IDB cleanup must run outside the pure updater so React 19
+      // StrictMode's double-invoke doesn't double-delete.
       const nextIds = new Set(next.map((wb) => wb.id));
       const removedIds = prev.filter((wb) => !nextIds.has(wb.id)).map((wb) => wb.id);
-      for (const id of removedIds) {
-        removeFile(id);
+      if (removedIds.length > 0) {
+        queueMicrotask(() => {
+          for (const id of removedIds) void removeFile(id);
+        });
       }
       return next;
     });
   }, []);
 
   const handleFileSaved = useCallback((id: string, name: string, data: ArrayBuffer) => {
-    saveFile(id, name, data);
+    void saveFile(id, name, data);
   }, []);
 
   const handleClearAll = useCallback(() => {
-    clearAllFiles();
+    void clearAllFiles();
     setWorkbooks([]);
     setHiddenFiles(new Set());
   }, []);
@@ -85,16 +93,16 @@ export default function App() {
   }, []);
 
   return (
-    <div className="flex h-screen overflow-hidden" style={{ background: '#0b0d11' }}>
+    <div className="app-shell flex h-screen overflow-hidden" style={{ background: C.bg }}>
       {/* Sidebar */}
       <div
-        className="w-72 shrink-0 flex h-full min-h-0 flex-col"
-        style={{ background: '#0d1017', borderRight: '1px solid #1e2535' }}
+        className="app-sidebar w-72 shrink-0 flex h-full min-h-0 flex-col"
+        style={{ background: C.bgPanel, borderRight: `1px solid ${C.border}` }}
       >
         {/* Header */}
         <div
           className="px-5 py-4"
-          style={{ borderBottom: '1px solid #1e2535' }}
+          style={{ borderBottom: `1px solid ${C.border}` }}
         >
           <TangleLogo size={28} showText={true} />
         </div>
@@ -110,18 +118,22 @@ export default function App() {
             onClearAll={handleClearAll}
             restoredCount={restoredCount}
             onRestoredDismiss={() => setRestoredCount(0)}
+            restoreError={restoreError}
+            onRestoreErrorDismiss={() => setRestoreError(null)}
           />
         </div>
       </div>
 
       {/* Graph canvas */}
-      <GraphView
-        workbooks={workbooks}
-        highlightedFile={highlightedFile}
-        onHighlightClear={() => setHighlightedFile(null)}
-        hiddenFiles={hiddenFiles}
-        onToggleHidden={handleToggleHidden}
-      />
+      <div className="app-main flex-1 min-w-0 flex flex-col">
+        <GraphView
+          workbooks={workbooks}
+          highlightedFile={highlightedFile}
+          onHighlightClear={() => setHighlightedFile(null)}
+          hiddenFiles={hiddenFiles}
+          onToggleHidden={handleToggleHidden}
+        />
+      </div>
     </div>
   );
 }

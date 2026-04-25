@@ -1,11 +1,7 @@
-// ── Design tokens ─────────────────────────────────────────────────────────────
-// These map to CSS custom properties defined in src/index.css and swapped
-// per theme via `:root[data-theme="..."]`. The `ThemeProvider` sets the attribute.
-//
-// Note: values are CSS var() strings, not hex literals — so any component style
-// that consumes them automatically re-themes on swap without a re-render.
-// Derived tokens like `accentGlowFaint` replace old inline `.replace('0.3','0.12')`
-// string manipulation patterns.
+// Design tokens — CSS custom properties defined in src/index.css and swapped
+// per theme via `:root[data-theme="..."]`. Values are var() strings (not hex)
+// so consumers re-theme automatically when the data-theme attribute flips, with
+// no React re-render needed.
 
 export const C = {
   accent: 'var(--tg-accent)',
@@ -54,9 +50,9 @@ export const C = {
 } as const;
 
 /**
- * Mix a theme color with transparent at the given percentage.
- * Replaces the legacy `${C.accent}33` hex-alpha concatenation pattern, which
- * doesn't work on top of CSS `var(...)` strings.
+ * Mix `color` with transparent at `pct`%. Uses `color-mix` because rgb()/hsla
+ * cannot consume CSS var() inputs and string-concat (`${C.accent}33`) produces
+ * `var(--tg-accent)33` — invalid CSS that browsers silently drop.
  */
 export function alpha(color: string, pct: number): string {
   return `color-mix(in srgb, ${color} ${pct}%, transparent)`;

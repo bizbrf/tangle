@@ -3,13 +3,14 @@ import type { Node, Edge } from '@xyflow/react';
 import type { NodeData, EdgeData, EdgeKind } from '../../lib/graph';
 import type { WorkbookFile } from '../../types';
 import { C } from './constants';
+import { edgeAccentColor } from './edge-helpers';
 
 const EDGE_KIND_META: { kind: EdgeKind; label: string; color: string }[] = [
-  { kind: 'internal',    label: 'Internal',     color: '#e8445a' },
-  { kind: 'cross-file',  label: 'Cross-file',   color: '#818cf8' },
-  { kind: 'external',    label: 'External',     color: '#f59e0b' },
-  { kind: 'named-range', label: 'Named Range',  color: '#10b981' },
-  { kind: 'table',       label: 'Table',        color: '#a78bfa' },
+  { kind: 'internal',    label: 'Internal',    color: edgeAccentColor('internal') },
+  { kind: 'cross-file',  label: 'Cross-file',  color: edgeAccentColor('cross-file') },
+  { kind: 'external',    label: 'External',    color: edgeAccentColor('external') },
+  { kind: 'named-range', label: 'Named Range', color: edgeAccentColor('named-range') },
+  { kind: 'table',       label: 'Table',       color: edgeAccentColor('table') },
 ];
 
 interface StatsPanelProps {
@@ -78,6 +79,7 @@ export function StatsPanel({ workbooks, nodes, edges, onClose }: StatsPanelProps
   return (
     <div
       data-testid="stats-panel"
+      className="glass-panel"
       style={{
         position: 'absolute',
         top: 56,
@@ -207,7 +209,7 @@ export function StatsPanel({ workbooks, nodes, edges, onClose }: StatsPanelProps
             name={stats.mostReferenced.name}
             workbook={stats.mostReferenced.workbook}
             metric={`${stats.mostReferenced.count} incoming edges`}
-            color="#818cf8"
+            color={C.indigo}
           />
         )}
       </div>

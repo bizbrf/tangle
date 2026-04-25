@@ -45,9 +45,22 @@
 - 🔀 Multiple layout modes (left-right, top-bottom, grouped by workbook)
 - 🎯 Focus mode — isolate a sheet and its neighbors
 - 🙈 Hide/show workbooks to reduce clutter
+- 🎨 Three themes (Refined / Dense / Cinematic) — cycle with `Ctrl+\`
 - 🌐 Works in any modern browser — no install needed
 - 💻 Optional Windows desktop app via Tauri
 - 🔒 100% client-side — your data stays on your machine
+
+## Themes
+
+Tangle ships with three swappable visual themes. Cycle them with the moon button in the toolbar, or press <kbd>Ctrl</kbd>+<kbd>\</kbd> (<kbd>Cmd</kbd>+<kbd>\</kbd> on macOS). Your choice persists across reloads.
+
+| Theme | Best for | Notes |
+|---|---|---|
+| **Refined** | Daily use | Original polished dark theme — curved edges, dot grid. Default. |
+| **Dense** | Power users on big graphs | Mono-forward typography, sharper corners, orthogonal edges. |
+| **Cinematic** | Demos & screenshots | Starfield background, floating glass panels, blue-shifted palette, gentle pulse on selected node. |
+
+Cinematic respects `prefers-reduced-motion` — animations collapse to near-instant when the OS asks for less motion.
 
 ## What it does
 

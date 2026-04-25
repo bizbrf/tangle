@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { memo, useEffect, useState, useCallback } from 'react';
 import {
   EdgeLabelRenderer,
   getBezierPath,
@@ -6,7 +6,7 @@ import {
   type EdgeProps,
 } from '@xyflow/react';
 import type { EdgeData, NodeData } from '../../lib/graph';
-import { C } from './constants';
+import { C, alpha } from './constants';
 import { getNodeIntersection, getEdgePosition, edgeAccentColor } from './edge-helpers';
 
 const FLOW_STYLE_ID = 'tangle-edge-flow';
@@ -28,7 +28,7 @@ function ensureFlowStyles() {
   document.head.appendChild(style);
 }
 
-export function WeightedEdge({
+function WeightedEdgeImpl({
   id,
   source, target,
   sourceX, sourceY, targetX, targetY,
@@ -135,7 +135,7 @@ export function WeightedEdge({
               fontWeight: 700,
               color: strokeColor,
               letterSpacing: '0.03em',
-              boxShadow: `0 2px 8px rgba(0,0,0,0.6), 0 0 8px ${strokeColor}44`,
+              boxShadow: `0 2px 8px rgba(0,0,0,0.6), 0 0 8px ${alpha(strokeColor, 27)}`,
               whiteSpace: 'nowrap',
             }}>
               {refCount}
@@ -160,6 +160,11 @@ export function WeightedEdge({
     </>
   );
 }
+
+// Memoized so unaffected edges skip re-render on every selection change.
+// React Flow rebuilds the edge array per selection but most edges' inputs are
+// referentially equal, so shallow compare cheaply skips them.
+export const WeightedEdge = memo(WeightedEdgeImpl);
 
 /* ── Tooltip sub-component ─────────────────────────────────────────────────── */
 
@@ -243,8 +248,8 @@ function EdgeTooltip({
             fontSize: 10,
             fontWeight: 600,
             color: kindColor,
-            background: `${kindColor}18`,
-            border: `1px solid ${kindColor}33`,
+            background: alpha(kindColor, 9),
+            border: `1px solid ${alpha(kindColor, 20)}`,
             borderRadius: 6,
             padding: '1px 7px',
             letterSpacing: '0.02em',
@@ -269,7 +274,7 @@ function EdgeTooltip({
           <div style={{
             fontSize: 10,
             color: C.textMuted,
-            fontFamily: 'monospace',
+            fontFamily: 'var(--tg-font-mono)',
             overflow: 'hidden',
             textOverflow: 'ellipsis',
             whiteSpace: 'nowrap',

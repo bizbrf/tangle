@@ -26,6 +26,7 @@ import { applyLayoutAlgorithm, buildGraph, type NodeData, type EdgeData, type La
 import { buildDependencyGraph, detectCycles } from '../../lib/resolver';
 import { findAllPaths, type PathResult } from '../../lib/pathfinder';
 import { C, alpha } from './constants';
+import { useTheme } from '../../themes/useTheme';
 import { edgeStrokeWidth, edgeAccentColor, edgeRestColor } from './edge-helpers';
 import { WeightedEdge } from './WeightedEdge';
 import { SheetNode } from './SheetNode';
@@ -63,6 +64,50 @@ function writeUrlParams(viewMode: ViewMode, dir: LayoutDirection, fit: boolean) 
 const nodeTypes = { sheet: SheetNode, cluster: ClusterNode };
 const edgeTypes = { weighted: WeightedEdge };
 
+// React Flow background variant per non-stars theme pattern.
+const RF_BG_VARIANT: Record<'dots' | 'lines' | 'cross', BackgroundVariant> = {
+  dots:  BackgroundVariant.Dots,
+  lines: BackgroundVariant.Lines,
+  cross: BackgroundVariant.Cross,
+};
+
+// ── Cinematic starfield (static SVG overlay behind the canvas) ───────────────
+
+function StarfieldBackground() {
+  const stars = useMemo(() => {
+    const out: { x: number; y: number; r: number; o: number }[] = [];
+    // Seeded LCG (not Math.random) so the starfield is identical across users,
+    // sessions, snapshots, and PNG exports. Reproducibility, not just stability.
+    let seed = 42;
+    const rand = () => {
+      seed = (seed * 9301 + 49297) % 233280;
+      return seed / 233280;
+    };
+    for (let i = 0; i < 140; i++) {
+      out.push({
+        x: rand() * 100,
+        y: rand() * 100,
+        r: rand() * 1.2 + 0.2,
+        o: rand() * 0.6 + 0.2,
+      });
+    }
+    return out;
+  }, []);
+  return (
+    <svg
+      width="100%"
+      height="100%"
+      style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 0 }}
+      preserveAspectRatio="none"
+      viewBox="0 0 100 100"
+    >
+      {stars.map((s, i) => (
+        <circle key={i} cx={s.x} cy={s.y} r={s.r * 0.15} fill="#fff" opacity={s.o} />
+      ))}
+    </svg>
+  );
+}
+
 // ── Main Component ────────────────────────────────────────────────────────────
 
 interface GraphViewProps {
@@ -74,11 +119,13 @@ interface GraphViewProps {
 }
 
 function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFiles, onToggleHidden }: GraphViewProps) {
+  const { theme } = useTheme();
   const [nodes, setNodes, onNodesChange] = useNodesState<Node<NodeData>>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge<EdgeData>>([]);
   const [selectedNodes, setSelectedNodes] = useState<Node<NodeData>[]>([]);
   const [selectedEdge, setSelectedEdge] = useState<Edge<EdgeData> | null>(null);
-  const [selectedNodeIds, setSelectedNodeIds] = useState<Set<string>>(new Set());
+  // Derived — kept as a Set so styledEdges/styledNodes can do O(1) hit-tests.
+  const selectedNodeIds = useMemo(() => new Set(selectedNodes.map((n) => n.id)), [selectedNodes]);
 
   // ── Persistent control state (synced to URL) ────────────────────────────────
   const initialParams = useMemo(() => readUrlParams(), []);
@@ -87,22 +134,11 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
   const [fitEnabled, setFitEnabledRaw] = useState<boolean>(initialParams.fit);
   const [layoutAlgorithm, setLayoutAlgorithm] = useState<LayoutAlgorithm>('structured');
 
-  // Wrap setters to also persist to URL
-  const setViewMode = useCallback((m: ViewMode) => {
-    setViewModeRaw(m);
-    writeUrlParams(m, layoutDirection, fitEnabled);
-  }, [layoutDirection, fitEnabled]);
-  const setLayoutDirection = useCallback((d: LayoutDirection) => {
-    setLayoutDirectionRaw(d);
-    writeUrlParams(viewMode, d, fitEnabled);
-  }, [viewMode, fitEnabled]);
-  const toggleFit = useCallback(() => {
-    setFitEnabledRaw((f) => {
-      const next = !f;
-      writeUrlParams(viewMode, layoutDirection, next);
-      return next;
-    });
-  }, [viewMode, layoutDirection]);
+  // URL is synced via the useEffect below — these wrappers exist only because
+  // the keyboard handler bypasses them and uses setViewModeRaw / etc directly.
+  const setViewMode = useCallback((m: ViewMode) => setViewModeRaw(m), []);
+  const setLayoutDirection = useCallback((d: LayoutDirection) => setLayoutDirectionRaw(d), []);
+  const toggleFit = useCallback(() => setFitEnabledRaw((f) => !f), []);
 
   // ── Derived layout mode for buildGraph ─────────────────────────────────────
   const layoutMode: LayoutMode = viewMode === 'overview' ? 'overview' : 'graph';
@@ -181,7 +217,6 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
   const clearSelection = useCallback(() => {
     setSelectedNodes([]);
     setSelectedEdge(null);
-    setSelectedNodeIds(new Set());
     setNodes((currentNodes) => {
       let changed = false;
       const nextNodes = currentNodes.map((node) => {
@@ -229,7 +264,6 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
       current.map((e) => ({ ...e, selected: false })),
     );
     setSelectedNodes([targetNode]);
-    setSelectedNodeIds(new Set([nodeId]));
     setSelectedEdge(null);
 
     // Pan to the node
@@ -266,7 +300,6 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setSelectedNodes([]);
     setSelectedEdge(null);
-    setSelectedNodeIds(new Set());
     setFocusNodeId(null);
     setPathResult(null);
   }, [workbooks, layoutMode, layoutDirection, hiddenFiles, showNamedRanges, showTables, setNodes, setEdges, computeLayoutNodes, layoutAlgorithm]);
@@ -291,11 +324,12 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
       .map((n) => n.id);
     if (matchIds.length === 0) return;
 
-    // Sync selection to highlighted file — intentional synchronization
+    // Sync selection to highlighted file — also flip RF's per-node selected
+    // flag so the canvas halo matches what styledEdges sees.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setSelectedNodeIds(new Set(matchIds));
     setSelectedNodes(nodes.filter((n) => matchIds.includes(n.id)));
     setSelectedEdge(null);
+    setNodes((current) => current.map((n) => ({ ...n, selected: matchIds.includes(n.id) })));
 
     // fitView after a frame so React Flow has updated
     requestAnimationFrame(() => {
@@ -309,7 +343,7 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
     }, 3000);
 
     return () => clearTimeout(highlightTimerRef.current);
-  }, [highlightedFile, nodes, fitView, onHighlightClear]);
+  }, [highlightedFile, nodes, fitView, onHighlightClear, setNodes]);
 
   // ── Keyboard shortcuts ────────────────────────────────────────────────────
   useEffect(() => {
@@ -332,11 +366,9 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
       switch (e.key) {
         case 'g': case 'G':
           setViewModeRaw(nextView);
-          writeUrlParams(nextView, layoutDirection, fitEnabled);
           break;
         case 'l': case 'L':
           setLayoutDirectionRaw(nextDir);
-          writeUrlParams(viewMode, nextDir, fitEnabled);
           break;
         case 'f': case 'F':
           toggleFit();
@@ -572,7 +604,7 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
           stroke: inPath ? edgeAccentColor(kind) : inCycle ? C.amber : strokeColor,
           strokeWidth: inPath ? baseWidth + 1.5 : inCycle ? baseWidth + 1.5 : highlight ? baseWidth + 1 : baseWidth,
           opacity: dimmedByPath ? 0.06 : dimmedBySearch ? 0.06 : dimmedByCycle ? 0.06 : dimmedByFocus ? 0.04 : dimmedBySelection ? 0.12 : 1,
-          filter: inPath ? `drop-shadow(0 0 ${baseWidth + 3}px ${glowColor}88)` : inCycle ? `drop-shadow(0 0 ${baseWidth + 3}px ${C.amberGlow})` : highlight ? `drop-shadow(0 0 ${baseWidth + 2}px ${glowColor}88)` : 'none',
+          filter: inPath ? `drop-shadow(0 0 ${baseWidth + 3}px ${alpha(glowColor, 53)})` : inCycle ? `drop-shadow(0 0 ${baseWidth + 3}px ${C.amberGlow})` : highlight ? `drop-shadow(0 0 ${baseWidth + 2}px ${alpha(glowColor, 53)})` : 'none',
           transition: 'stroke 0.2s, stroke-width 0.2s, opacity 0.2s, filter 0.2s',
         },
         animated: highlight || inCycle || inPath,
@@ -619,23 +651,38 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
     });
   }, [nodes, focusNeighborIds, searchMatchIds, cycleHighlightIds, pathResult]);
 
+  // Skip the no-op selection events React Flow fires during hover passes —
+  // saves a styledEdges/styledNodes recompute on every hovered edge.
   const onSelectionChange = useCallback(
     ({ nodes: sNodes, edges: sEdges }: OnSelectionChangeParams) => {
       const typedNodes = sNodes as Node<NodeData>[];
       const typedEdges = sEdges as Edge<EdgeData>[];
-      setSelectedNodes(typedNodes);
-      setSelectedNodeIds(new Set(typedNodes.map((n) => n.id)));
-      setSelectedEdge(typedNodes.length === 0 && typedEdges.length > 0 ? typedEdges[0] : null);
+      setSelectedNodes((prev) => {
+        if (prev.length !== typedNodes.length) return typedNodes;
+        for (let i = 0; i < prev.length; i++) {
+          if (prev[i].id !== typedNodes[i].id) return typedNodes;
+        }
+        return prev;
+      });
+      const nextEdge = typedNodes.length === 0 && typedEdges.length > 0 ? typedEdges[0] : null;
+      setSelectedEdge((prev) => (prev?.id === nextEdge?.id ? prev : nextEdge));
     },
     [],
   );
 
-  function onPaneClick() {
+  const onPaneClick = useCallback(() => {
     clearSelection();
     setFocusNodeId(null);
     setSelectedCycleIndex(null);
     setPathResult(null);
-  }
+  }, [clearSelection]);
+
+  // Memoize so React Flow doesn't see a new options ref every render.
+  const defaultEdgeOptions = useMemo(() => ({
+    type: theme.edge.type,
+    style: { stroke: C.border, strokeWidth: 1.5 },
+    markerEnd: { type: MarkerType.ArrowClosed, color: C.border },
+  }), [theme.edge.type]);
 
   if (workbooks.length === 0) return <EmptyState />;
 
@@ -657,18 +704,18 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
         minZoom={0.15}
         maxZoom={2.5}
         style={{ width: '100%', height: '100%', background: C.bg }}
-        defaultEdgeOptions={{
-          type: 'smoothstep',
-          style: { stroke: C.border, strokeWidth: 1.5 },
-          markerEnd: { type: MarkerType.ArrowClosed, color: C.border },
-        }}
+        defaultEdgeOptions={defaultEdgeOptions}
       >
-        <Background
-          variant={BackgroundVariant.Dots}
-          color="#1a2030"
-          gap={28}
-          size={1.5}
-        />
+        {theme.canvas.pattern === 'stars' ? (
+          <StarfieldBackground />
+        ) : (
+          <Background
+            variant={RF_BG_VARIANT[theme.canvas.pattern]}
+            color={C.border}
+            gap={theme.canvas.gap}
+            size={theme.canvas.size}
+          />
+        )}
         <Controls />
         <MiniMap
           nodeColor={(n) => {
@@ -677,7 +724,7 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
             if (d.isNamedRange) return C.emerald;
             return d.isExternal ? C.amber : C.accent;
           }}
-          maskColor="rgba(11,13,17,0.8)"
+          maskColor={alpha(C.bg, 80)}
           nodeStrokeWidth={0}
         />
       </ReactFlow>
@@ -847,7 +894,7 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
                 border: 'none', cursor: 'pointer',
                 fontSize: 11, fontWeight: 700,
                 background: focusDepth === d ? C.accent : 'transparent',
-                color: focusDepth === d ? '#fff' : C.textMuted,
+                color: focusDepth === d ? C.textPrimary : C.textMuted,
                 transition: 'all 0.15s',
               }}
             >
@@ -866,7 +913,7 @@ function GraphViewInner({ workbooks, highlightedFile, onHighlightClear, hiddenFi
                   padding: '4px 8px', borderRadius: 6, border: 'none', cursor: 'pointer',
                   fontSize: 10, fontWeight: 600,
                   background: active ? C.accent : 'transparent',
-                  color: active ? '#fff' : C.textMuted,
+                  color: active ? C.textPrimary : C.textMuted,
                   transition: 'all 0.15s',
                 }}
               >

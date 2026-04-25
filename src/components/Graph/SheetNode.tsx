@@ -1,298 +1,234 @@
-import { useState } from 'react';
+import { memo, useState, type CSSProperties, type ReactNode } from 'react';
 import { Handle, Position, type Node, type NodeProps } from '@xyflow/react';
 import type { NodeData } from '../../lib/graph';
 import { stripExcelExt } from '../../lib/graph';
 import { C, alpha } from './constants';
 
-export function SheetNode({ data, selected }: NodeProps<Node<NodeData>>) {
-  const [hovered, setHovered] = useState(false);
-  const isExt = data.isExternal;
-  const accent = isExt ? C.amber : C.accent;
-  const accentGlow = isExt ? C.amberGlow : C.accentGlow;
-  const accentGlowFaint = isExt ? C.amberGlowFaint : C.accentGlowFaint;
+type NodeKind = 'sheet' | 'table' | 'named-range' | 'file';
 
-  const containerStyle: React.CSSProperties = {
+interface AccentTokens {
+  color: string;
+  dim: string;
+  glow: string;
+  glowFaint: string;
+}
+
+const ACCENT_TOKENS: Record<NodeKind, AccentTokens> = {
+  sheet:         { color: C.accent,  dim: C.accentDim,  glow: C.accentGlow,  glowFaint: C.accentGlowFaint  },
+  table:         { color: C.violet,  dim: C.violetDim,  glow: C.violetGlow,  glowFaint: C.violetGlowFaint  },
+  'named-range': { color: C.emerald, dim: C.emeraldDim, glow: C.emeraldGlow, glowFaint: C.emeraldGlowFaint },
+  file:          { color: C.amber,   dim: C.amberDim,   glow: C.amberGlow,   glowFaint: C.amberGlowFaint   },
+};
+
+function nodeKind(data: NodeData): NodeKind {
+  if (data.isTable) return 'table';
+  if (data.isNamedRange) return 'named-range';
+  if (data.isFileNode) return 'file';
+  return 'sheet';
+}
+
+const TABLE_ICON = (
+  <path strokeLinecap="round" strokeLinejoin="round" d="M3 6h18M3 12h18M3 18h18M9 3v18M15 3v18" />
+);
+const NAMED_RANGE_ICON = (
+  <>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z" />
+    <path strokeLinecap="round" strokeLinejoin="round" d="M6 6h.008v.008H6V6z" />
+  </>
+);
+const FILE_ICON = (
+  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+);
+
+function HeaderIcon({ kind, accent }: { kind: NodeKind; accent: string }) {
+  if (kind === 'sheet') return null;
+  return (
+    <svg style={{ flexShrink: 0, marginTop: 2 }} width="14" height="14" fill="none" viewBox="0 0 24 24" stroke={accent} strokeWidth={1.5} opacity={0.75}>
+      {kind === 'table' ? TABLE_ICON : kind === 'named-range' ? NAMED_RANGE_ICON : FILE_ICON}
+    </svg>
+  );
+}
+
+function CountBadge({ outgoing, incoming, accent, accentDim }: {
+  outgoing: number;
+  incoming: number;
+  accent: string;
+  accentDim: string;
+}) {
+  if (outgoing === 0 && incoming === 0) return null;
+  return (
+    <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
+      {outgoing > 0 && (
+        <span style={{
+          fontSize: 10, fontWeight: 600,
+          color: accent, background: accentDim,
+          border: `1px solid ${alpha(accent, 20)}`,
+          borderRadius: 99, padding: '2px 7px',
+          display: 'inline-flex', alignItems: 'center', gap: 3,
+        }}>
+          ↗ {outgoing}
+        </span>
+      )}
+      {incoming > 0 && (
+        <span style={{
+          fontSize: 10, fontWeight: 600,
+          color: C.textSecondary, background: C.surfaceHi,
+          border: `1px solid ${C.borderHover}`,
+          borderRadius: 99, padding: '2px 7px',
+          display: 'inline-flex', alignItems: 'center', gap: 3,
+        }}>
+          ↙ {incoming}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function SheetNodeImpl({ data, selected }: NodeProps<Node<NodeData>>) {
+  const [hovered, setHovered] = useState(false);
+  const kind = nodeKind(data);
+  const accent = ACCENT_TOKENS[kind];
+  const dashed = kind === 'file';
+
+  const handleStyle: CSSProperties = {
+    background: accent.color,
+    width: 8, height: 8,
+    border: `2px solid ${C.surface}`,
+    boxShadow: `0 0 6px ${accent.glow}`,
+    transition: 'box-shadow 0.15s',
+  };
+
+  const containerStyle: CSSProperties = {
     background: selected ? C.surfaceRaised : hovered ? C.surfaceHi : C.surface,
-    border: `1.5px solid ${selected ? accent : hovered ? C.borderHover : C.border}`,
+    border: `1.5px ${dashed ? 'dashed' : 'solid'} ${
+      selected ? accent.color : hovered ? alpha(accent.color, 53) : kind === 'sheet' ? C.border : alpha(accent.color, 27)
+    }`,
     borderRadius: 'var(--tg-node-radius)',
     padding: '10px 14px 10px 18px',
-    minWidth: 170,
+    minWidth: kind === 'sheet' ? 170 : 160,
     cursor: 'pointer',
     transition: 'all 0.15s ease',
     position: 'relative',
     boxShadow: selected
-      ? `0 0 0 1px ${accent}, 0 0 24px ${accentGlow}, 0 8px 32px rgba(0,0,0,0.5)`
+      ? `0 0 0 1px ${alpha(accent.color, 40)}, 0 0 24px ${accent.glow}, 0 8px 32px rgba(0,0,0,0.5)`
       : hovered
-        ? `0 0 16px ${accentGlowFaint}, 0 4px 16px rgba(0,0,0,0.4)`
+        ? `0 0 16px ${accent.glowFaint}, 0 4px 16px rgba(0,0,0,0.4)`
         : '0 2px 8px rgba(0,0,0,0.3)',
   };
 
-  const handleStyle: React.CSSProperties = {
-    background: accent,
-    width: 8,
-    height: 8,
-    border: `2px solid ${C.surface}`,
-    boxShadow: `0 0 6px ${accentGlow}`,
-    transition: 'box-shadow 0.15s',
-  };
-
-  // ── Table node ────────────────────────────────────────────────────────────
-  if (data.isTable) {
-    const tblHandleStyle: React.CSSProperties = {
-      background: C.violet,
-      width: 8, height: 8,
-      border: `2px solid ${C.surface}`,
-      boxShadow: `0 0 6px ${C.violetGlow}`,
-      transition: 'box-shadow 0.15s',
-    };
-    return (
-      <div data-testid="sheet-node"
-        style={{
-          background: selected ? C.surfaceRaised : hovered ? C.surfaceHi : C.surface,
-          border: `1.5px solid ${selected ? C.violet : hovered ? `${alpha(C.violet, 53)}` : `${alpha(C.violet, 27)}`}`,
-          borderRadius: 'var(--tg-node-radius)',
-          padding: '10px 14px 10px 18px',
-          minWidth: 160,
-          cursor: 'pointer',
-          transition: 'all 0.15s ease',
-          position: 'relative',
-          boxShadow: selected
-            ? `0 0 0 1px ${alpha(C.violet, 40)}, 0 0 24px ${C.violetGlow}, 0 8px 32px rgba(0,0,0,0.5)`
-            : hovered
-              ? `0 0 16px ${C.violetGlowFaint}, 0 4px 16px rgba(0,0,0,0.4)`
-              : '0 2px 8px rgba(0,0,0,0.3)',
-        }}
-        onMouseEnter={() => setHovered(true)}
-        onMouseLeave={() => setHovered(false)}
-      >
-        {/* Left violet accent bar */}
+  // Header content varies by kind. Sheet shows workbook+sheet stack; others
+  // show icon+title+sublabel.
+  let header: ReactNode;
+  if (kind === 'sheet') {
+    header = (
+      <>
         <div style={{
-          position: 'absolute', left: 0, top: 10, bottom: 10,
-          width: 3, borderRadius: '0 3px 3px 0',
-          background: selected ? C.violet : hovered ? `${alpha(C.violet, 60)}` : `${alpha(C.violet, 33)}`,
-          transition: 'background 0.15s',
-          boxShadow: selected ? `0 0 8px ${C.violetGlow}` : 'none',
-        }} />
-
-        <Handle type="target" position={Position.Left} style={tblHandleStyle} />
-
-        {/* Table icon + name */}
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 7 }}>
-          <svg style={{ flexShrink: 0, marginTop: 2 }} width="14" height="14" fill="none" viewBox="0 0 24 24" stroke={C.violet} strokeWidth={1.5} opacity={0.75}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M3 6h18M3 12h18M3 18h18M9 3v18M15 3v18" />
-          </svg>
-          <div style={{ minWidth: 0 }}>
-            <div style={{
-              fontSize: 13, fontWeight: 700,
-              color: selected ? C.textPrimary : hovered ? C.textPrimary : '#cbd5e1',
-              maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-              transition: 'color 0.15s',
-            }}>
-              {data.tableName ?? data.label}
-            </div>
-            <div style={{ fontSize: 9, color: C.violet, marginTop: 2, opacity: 0.8, letterSpacing: '0.06em', fontWeight: 600 }}>
-              {data.tableRef ?? 'table'}
-            </div>
+          fontSize: 9, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase',
+          color: C.textMuted, marginBottom: 2, maxWidth: 160,
+          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+        }}>
+          {stripExcelExt(data.workbookName)}
+        </div>
+        <div style={{
+          fontSize: 13, fontWeight: 700,
+          color: selected || hovered ? C.textPrimary : C.textSecondary,
+          maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          transition: 'color 0.15s',
+        }}>
+          {data.sheetName}
+        </div>
+      </>
+    );
+  } else {
+    const title =
+      kind === 'table' ? (data.tableName ?? data.label) :
+      kind === 'named-range' ? (data.namedRangeName ?? data.label) :
+      data.sheetName;
+    const subLabel =
+      kind === 'table' ? (data.tableRef ?? 'table') :
+      kind === 'named-range' ? (data.namedRangeRef ?? 'named range') :
+      (data.isExternal ? 'external file' : `${data.sheetCount} sheet${data.sheetCount !== 1 ? 's' : ''}`);
+    header = (
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 7 }}>
+        <HeaderIcon kind={kind} accent={accent.color} />
+        <div style={{ minWidth: 0 }}>
+          <div style={{
+            fontSize: 13, fontWeight: 700,
+            color: selected || hovered ? C.textPrimary : C.textSecondary,
+            maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            transition: 'color 0.15s',
+          }}>
+            {title}
+          </div>
+          <div style={{
+            fontSize: 9, color: accent.color, marginTop: 2, opacity: 0.8,
+            letterSpacing: '0.06em', fontWeight: 600,
+            ...(kind === 'file' ? { textTransform: 'uppercase' as const } : {}),
+          }}>
+            {subLabel}
           </div>
         </div>
-
-        {/* Badges */}
-        <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
-          {data.outgoingCount > 0 && (
-            <span style={{
-              fontSize: 10, fontWeight: 600,
-              color: C.violet, background: C.violetDim,
-              border: `1px solid ${alpha(C.violet, 20)}`,
-              borderRadius: 99, padding: '2px 7px',
-              display: 'inline-flex', alignItems: 'center', gap: 3,
-            }}>
-              ↗ {data.outgoingCount}
-            </span>
-          )}
-          {data.incomingCount > 0 && (
-            <span style={{
-              fontSize: 10, fontWeight: 600,
-              color: C.textSecondary, background: C.surfaceHi,
-              border: `1px solid ${C.borderHover}`,
-              borderRadius: 99, padding: '2px 7px',
-              display: 'inline-flex', alignItems: 'center', gap: 3,
-            }}>
-              ↙ {data.incomingCount}
-            </span>
-          )}
-        </div>
-
-        <Handle type="source" position={Position.Right} style={tblHandleStyle} />
       </div>
     );
   }
 
-  // ── Named range node ──────────────────────────────────────────────────────
-  if (data.isNamedRange) {
-    const nrHandleStyle: React.CSSProperties = {
-      background: C.emerald,
-      width: 8, height: 8,
-      border: `2px solid ${C.surface}`,
-      boxShadow: `0 0 6px ${C.emeraldGlow}`,
-      transition: 'box-shadow 0.15s',
-    };
-    return (
-      <div data-testid="sheet-node"
-        style={{
-          background: selected ? C.surfaceRaised : hovered ? C.surfaceHi : C.surface,
-          border: `1.5px solid ${selected ? C.emerald : hovered ? `${alpha(C.emerald, 53)}` : `${alpha(C.emerald, 27)}`}`,
-          borderRadius: 'var(--tg-node-radius)',
-          padding: '10px 14px 10px 18px',
-          minWidth: 160,
-          cursor: 'pointer',
-          transition: 'all 0.15s ease',
-          position: 'relative',
-          boxShadow: selected
-            ? `0 0 0 1px ${alpha(C.emerald, 40)}, 0 0 24px ${C.emeraldGlow}, 0 8px 32px rgba(0,0,0,0.5)`
-            : hovered
-              ? `0 0 16px ${C.emeraldGlowFaint}, 0 4px 16px rgba(0,0,0,0.4)`
-              : '0 2px 8px rgba(0,0,0,0.3)',
-        }}
-        onMouseEnter={() => setHovered(true)}
-        onMouseLeave={() => setHovered(false)}
-      >
-        {/* Left emerald accent bar */}
-        <div style={{
-          position: 'absolute', left: 0, top: 10, bottom: 10,
-          width: 3, borderRadius: '0 3px 3px 0',
-          background: selected ? C.emerald : hovered ? `${alpha(C.emerald, 60)}` : `${alpha(C.emerald, 33)}`,
-          transition: 'background 0.15s',
-          boxShadow: selected ? `0 0 8px ${C.emeraldGlow}` : 'none',
-        }} />
+  // Sheet badges have an extra workload chip + external marker.
+  const badges = kind === 'sheet' ? (
+    <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
+      {data.workload && data.workload.totalFormulas > 0 && (
+        <span style={{
+          fontSize: 10, fontWeight: 600,
+          color: C.textPrimary, background: C.surfaceHi,
+          border: `1px solid ${C.border}`,
+          borderRadius: 99, padding: '2px 7px',
+          display: 'inline-flex', alignItems: 'center', gap: 3,
+          fontFamily: 'var(--tg-font-mono)',
+        }}>
+          f(x) {data.workload.totalFormulas}
+        </span>
+      )}
+      {data.outgoingCount > 0 && (
+        <span style={{
+          fontSize: 10, fontWeight: 600,
+          color: accent.color, background: accent.dim,
+          border: `1px solid ${alpha(accent.color, 20)}`,
+          borderRadius: 99, padding: '2px 7px',
+          display: 'inline-flex', alignItems: 'center', gap: 3,
+        }}>
+          ↗ {data.outgoingCount}
+        </span>
+      )}
+      {data.incomingCount > 0 && (
+        <span style={{
+          fontSize: 10, fontWeight: 600,
+          color: C.textSecondary, background: C.surfaceHi,
+          border: `1px solid ${C.borderHover}`,
+          borderRadius: 99, padding: '2px 7px',
+          display: 'inline-flex', alignItems: 'center', gap: 3,
+        }}>
+          ↙ {data.incomingCount}
+        </span>
+      )}
+      {data.isExternal && (
+        <span style={{
+          fontSize: 10, fontWeight: 600,
+          color: C.amber, background: C.amberDim,
+          border: `1px solid ${alpha(C.amber, 20)}`,
+          borderRadius: 99, padding: '2px 7px',
+        }}>
+          external
+        </span>
+      )}
+    </div>
+  ) : (
+    <CountBadge
+      outgoing={data.outgoingCount}
+      incoming={kind === 'file' ? 0 : data.incomingCount}
+      accent={accent.color}
+      accentDim={accent.dim}
+    />
+  );
 
-        <Handle type="target" position={Position.Left} style={nrHandleStyle} />
-
-        {/* Tag icon + name */}
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 7 }}>
-          <svg style={{ flexShrink: 0, marginTop: 2 }} width="14" height="14" fill="none" viewBox="0 0 24 24" stroke={C.emerald} strokeWidth={1.5} opacity={0.75}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z" />
-            <path strokeLinecap="round" strokeLinejoin="round" d="M6 6h.008v.008H6V6z" />
-          </svg>
-          <div style={{ minWidth: 0 }}>
-            <div style={{
-              fontSize: 13, fontWeight: 700,
-              color: selected ? C.textPrimary : hovered ? C.textPrimary : '#cbd5e1',
-              maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-              transition: 'color 0.15s',
-            }}>
-              {data.namedRangeName ?? data.label}
-            </div>
-            <div style={{ fontSize: 9, color: C.emerald, marginTop: 2, opacity: 0.8, letterSpacing: '0.06em', fontWeight: 600 }}>
-              {data.namedRangeRef ?? 'named range'}
-            </div>
-          </div>
-        </div>
-
-        {/* Badges */}
-        <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
-          {data.outgoingCount > 0 && (
-            <span style={{
-              fontSize: 10, fontWeight: 600,
-              color: C.emerald, background: C.emeraldDim,
-              border: `1px solid ${alpha(C.emerald, 20)}`,
-              borderRadius: 99, padding: '2px 7px',
-              display: 'inline-flex', alignItems: 'center', gap: 3,
-            }}>
-              ↗ {data.outgoingCount}
-            </span>
-          )}
-          {data.incomingCount > 0 && (
-            <span style={{
-              fontSize: 10, fontWeight: 600,
-              color: C.textSecondary, background: C.surfaceHi,
-              border: `1px solid ${C.borderHover}`,
-              borderRadius: 99, padding: '2px 7px',
-              display: 'inline-flex', alignItems: 'center', gap: 3,
-            }}>
-              ↙ {data.incomingCount}
-            </span>
-          )}
-        </div>
-
-        <Handle type="source" position={Position.Right} style={nrHandleStyle} />
-      </div>
-    );
-  }
-
-  // ── External file node (collapsed, not uploaded) ──────────────────────────
-  if (data.isFileNode) {
-    return (
-      <div data-testid="sheet-node"
-        style={{
-          background: selected ? C.surfaceRaised : hovered ? C.surfaceHi : C.surface,
-          border: `1.5px dashed ${selected ? C.amber : hovered ? `${alpha(C.amber, 53)}` : `${alpha(C.amber, 27)}`}`,
-          borderRadius: 'var(--tg-node-radius)',
-          padding: '10px 14px 10px 18px',
-          minWidth: 160,
-          cursor: 'pointer',
-          transition: 'all 0.15s ease',
-          position: 'relative',
-          boxShadow: selected
-            ? `0 0 0 1px ${alpha(C.amber, 40)}, 0 0 24px ${C.amberGlow}, 0 8px 32px rgba(0,0,0,0.5)`
-            : hovered
-              ? `0 0 16px ${C.amberGlowFaint}, 0 4px 16px rgba(0,0,0,0.4)`
-              : '0 2px 8px rgba(0,0,0,0.3)',
-        }}
-        onMouseEnter={() => setHovered(true)}
-        onMouseLeave={() => setHovered(false)}
-      >
-        {/* Left amber accent bar */}
-        <div style={{
-          position: 'absolute', left: 0, top: 10, bottom: 10,
-          width: 3, borderRadius: '0 3px 3px 0',
-          background: selected ? C.amber : hovered ? `${alpha(C.amber, 60)}` : `${alpha(C.amber, 33)}`,
-          transition: 'background 0.15s',
-          boxShadow: selected ? `0 0 8px ${C.amberGlow}` : 'none',
-        }} />
-
-        <Handle type="target" position={Position.Left} style={handleStyle} />
-
-        {/* File icon + name */}
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 7 }}>
-          <svg style={{ flexShrink: 0, marginTop: 2 }} width="14" height="14" fill="none" viewBox="0 0 24 24" stroke={C.amber} strokeWidth={1.5} opacity={0.75}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
-          </svg>
-          <div style={{ minWidth: 0 }}>
-            <div style={{
-              fontSize: 13, fontWeight: 700,
-              color: selected ? C.textPrimary : hovered ? C.textPrimary : '#cbd5e1',
-              maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-              transition: 'color 0.15s',
-            }}>
-              {data.sheetName}
-            </div>
-            <div style={{ fontSize: 9, color: C.amber, marginTop: 2, opacity: 0.8, letterSpacing: '0.06em', textTransform: 'uppercase', fontWeight: 600 }}>
-              {data.isExternal ? 'external file' : `${data.sheetCount} sheet${data.sheetCount !== 1 ? 's' : ''}`}
-            </div>
-          </div>
-        </div>
-
-        {/* Outgoing count badge */}
-        {data.outgoingCount > 0 && (
-          <div style={{ display: 'flex', marginTop: 8 }}>
-            <span style={{
-              fontSize: 10, fontWeight: 600,
-              color: C.amber, background: C.amberDim,
-              border: `1px solid ${alpha(C.amber, 20)}`,
-              borderRadius: 99, padding: '2px 7px',
-              display: 'inline-flex', alignItems: 'center', gap: 3,
-            }}>
-              ↗ {data.outgoingCount}
-            </span>
-          </div>
-        )}
-
-        <Handle type="source" position={Position.Right} style={handleStyle} />
-      </div>
-    );
-  }
-
-  // ── Regular uploaded sheet node ────────────────────────────────────────────
   return (
     <div data-testid="sheet-node"
       style={containerStyle}
@@ -301,107 +237,20 @@ export function SheetNode({ data, selected }: NodeProps<Node<NodeData>>) {
     >
       {/* Left accent bar */}
       <div style={{
-        position: 'absolute',
-        left: 0, top: 10, bottom: 10,
-        width: 3,
-        borderRadius: '0 3px 3px 0',
-        background: selected
-          ? accent
-          : hovered
-            ? `${accent}99`
-            : `${accent}55`,
+        position: 'absolute', left: 0, top: 10, bottom: 10,
+        width: 3, borderRadius: '0 3px 3px 0',
+        background: selected ? accent.color : hovered ? alpha(accent.color, 60) : alpha(accent.color, 33),
         transition: 'background 0.15s',
-        boxShadow: selected ? `0 0 8px ${accentGlow}` : 'none',
+        boxShadow: selected ? `0 0 8px ${accent.glow}` : 'none',
       }} />
 
       <Handle type="target" position={Position.Left} style={handleStyle} />
-
-      {/* Workbook label */}
-      <div style={{
-        fontSize: 9,
-        fontWeight: 700,
-        letterSpacing: '0.12em',
-        textTransform: 'uppercase',
-        color: C.textMuted,
-        marginBottom: 2,
-        maxWidth: 160,
-        overflow: 'hidden',
-        textOverflow: 'ellipsis',
-        whiteSpace: 'nowrap',
-      }}>
-        {stripExcelExt(data.workbookName)}
-      </div>
-
-      {/* Sheet name */}
-      <div style={{
-        fontSize: 13,
-        fontWeight: 700,
-        color: selected ? C.textPrimary : hovered ? C.textPrimary : '#cbd5e1',
-        maxWidth: 160,
-        overflow: 'hidden',
-        textOverflow: 'ellipsis',
-        whiteSpace: 'nowrap',
-        transition: 'color 0.15s',
-      }}>
-        {data.sheetName}
-      </div>
-
-      {/* Badges */}
-      <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
-        {data.workload && data.workload.totalFormulas > 0 && (
-          <span style={{
-            fontSize: 10, fontWeight: 600,
-            color: C.textPrimary,
-            background: C.surfaceHi,
-            border: `1px solid ${C.border}`,
-            borderRadius: 99, padding: '2px 7px',
-            display: 'inline-flex', alignItems: 'center', gap: 3,
-            fontFamily: 'monospace',
-          }}>
-            f(x) {data.workload.totalFormulas}
-          </span>
-        )}
-        {data.outgoingCount > 0 && (
-          <span style={{
-            fontSize: 10, fontWeight: 600,
-            color: C.accent,
-            background: C.accentDim,
-            border: `1px solid ${alpha(C.accent, 20)}`,
-            borderRadius: 99, padding: '2px 7px',
-            display: 'inline-flex', alignItems: 'center', gap: 3,
-          }}>
-            ↗ {data.outgoingCount}
-          </span>
-        )}
-        {data.incomingCount > 0 && (
-          <span style={{
-            fontSize: 10, fontWeight: 600,
-            color: C.textSecondary,
-            background: C.surfaceHi,
-            border: `1px solid ${C.borderHover}`,
-            borderRadius: 99, padding: '2px 7px',
-            display: 'inline-flex', alignItems: 'center', gap: 3,
-          }}>
-            ↙ {data.incomingCount}
-          </span>
-        )}
-        {isExt && (
-          <span style={{
-            fontSize: 10, fontWeight: 600,
-            color: C.amber,
-            background: C.amberDim,
-            border: `1px solid ${alpha(C.amber, 20)}`,
-            borderRadius: 99, padding: '2px 7px',
-          }}>
-            external
-          </span>
-        )}
-      </div>
-
+      {header}
+      {badges}
       <Handle type="source" position={Position.Right} style={handleStyle} />
 
-      {/* Hover tooltip */}
-      {hovered && !selected && (
+      {/* Hover tooltip — sheet kind only */}
+      {kind === 'sheet' && hovered && !selected && (
         <div style={{
           position: 'absolute',
           bottom: 'calc(100% + 10px)',
@@ -441,7 +290,7 @@ export function SheetNode({ data, selected }: NodeProps<Node<NodeData>>) {
                 <span style={{ color: C.textMuted }}>No cross-sheet references</span>
               )}
             </div>
-            {isExt && (
+            {data.isExternal && (
               <div style={{
                 marginTop: 8, paddingTop: 8,
                 borderTop: `1px solid ${C.border}`,
@@ -466,3 +315,6 @@ export function SheetNode({ data, selected }: NodeProps<Node<NodeData>>) {
     </div>
   );
 }
+
+// Memoized so unchanged nodes skip re-render on selection events.
+export const SheetNode = memo(SheetNodeImpl);

@@ -1,28 +1,32 @@
 import { Position, type InternalNode } from '@xyflow/react';
 import type { EdgeKind } from '../../lib/graph';
+import { alpha } from './constants';
 
 // Stroke width scales with ref count using a log curve: thin for 1, moderate for 20+
 export function edgeStrokeWidth(refCount: number): number {
   return Math.min(1.2 + Math.log2(refCount + 1) * 0.8, 4.5);
 }
 
-// Full accent color per edge kind (used when highlighted)
+// Per-edge-kind highlight color, themed via CSS variables defined in
+// :root[data-theme="..."]. Exhaustive Record so adding an EdgeKind fails to
+// compile until a token is wired up here.
+const EDGE_ACCENT: Record<EdgeKind, string> = {
+  internal:      'var(--tg-edge-cross-sheet)',
+  'cross-file':  'var(--tg-edge-cross-file)',
+  'named-range': 'var(--tg-edge-named)',
+  table:         'var(--tg-edge-table)',
+  external:      'var(--tg-edge-external)',
+};
+
 export function edgeAccentColor(kind: EdgeKind): string {
-  if (kind === 'internal')     return '#e8445a'; // coral-red — same workbook
-  if (kind === 'cross-file')   return '#818cf8'; // indigo    — both uploaded
-  if (kind === 'named-range')  return '#10b981'; // emerald   — named range
-  if (kind === 'table')        return '#a78bfa'; // violet    — Excel table
-  return '#f59e0b';                              // amber     — external file
+  return EDGE_ACCENT[kind];
 }
 
-// Resting color: a subtle tint of the kind's accent, scaled slightly by ref count
+// Resting color: subtle tint of the kind's accent, scaled by ref count.
+// 20% floor keeps thin edges visible; 55% cap stops dense edges going opaque.
 export function edgeRestColor(kind: EdgeKind, refCount: number): string {
-  const opacity = Math.min(0.2 + Math.log2(refCount + 1) * 0.07, 0.55).toFixed(2);
-  if (kind === 'internal')     return `rgba(232, 68,  90,  ${opacity})`;
-  if (kind === 'cross-file')   return `rgba(129, 140, 248, ${opacity})`;
-  if (kind === 'named-range')  return `rgba(16,  185, 129, ${opacity})`;
-  if (kind === 'table')        return `rgba(167, 139, 250, ${opacity})`;
-  return                              `rgba(245, 158, 11,  ${opacity})`;
+  const pct = Math.round(Math.min(20 + Math.log2(refCount + 1) * 7, 55));
+  return alpha(edgeAccentColor(kind), pct);
 }
 
 // ── Floating edge helpers ────────────────────────────────────────────────────

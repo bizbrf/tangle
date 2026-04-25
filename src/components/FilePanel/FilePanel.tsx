@@ -14,6 +14,8 @@ interface FilePanelProps {
   onClearAll?: () => void;
   restoredCount?: number;
   onRestoredDismiss?: () => void;
+  restoreError?: string | null;
+  onRestoreErrorDismiss?: () => void;
 }
 
 // ── Icon helpers ──────────────────────────────────────────────────────────────
@@ -87,7 +89,7 @@ function IconEye({ hidden }: { hidden: boolean }) {
   );
 }
 
-export function FilePanel({ workbooks, onWorkbooksChange, onLocateFile, hiddenFiles, onToggleHidden, onFileSaved, onClearAll, restoredCount, onRestoredDismiss }: FilePanelProps) {
+export function FilePanel({ workbooks, onWorkbooksChange, onLocateFile, hiddenFiles, onToggleHidden, onFileSaved, onClearAll, restoredCount, onRestoredDismiss, restoreError, onRestoreErrorDismiss }: FilePanelProps) {
   const [dragging, setDragging] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
@@ -124,12 +126,36 @@ export function FilePanel({ workbooks, onWorkbooksChange, onLocateFile, hiddenFi
       setError('Only Excel files (.xlsx, .xls, .xlsm, .xlsb) are supported.');
       return;
     }
-    try {
-      const buffers = await Promise.all(excelFiles.map((f) => readFileAsBuffer(f)));
-      const parsed = excelFiles.map((f, i) =>
-        parseWorkbookFromBuffer(buffers[i], f.name, crypto.randomUUID()),
-      );
-      const { workbooks: resolved, duplicateOriginalNames } = resolveImportedWorkbooks(workbooks, parsed);
+    // Read + parse each file independently so one bad file doesn't drop the batch.
+    const settled = await Promise.allSettled(
+      excelFiles.map(async (f) => ({
+        file: f,
+        buffer: await readFileAsBuffer(f),
+      })),
+    );
+
+    const succeeded: { file: File; buffer: ArrayBuffer; parsed: WorkbookFile }[] = [];
+    const failures: string[] = [];
+
+    for (let i = 0; i < settled.length; i++) {
+      const result = settled[i];
+      if (result.status === 'rejected') {
+        console.warn(`[tangle] read ${excelFiles[i].name}:`, result.reason);
+        failures.push(excelFiles[i].name);
+        continue;
+      }
+      try {
+        const parsed = parseWorkbookFromBuffer(result.value.buffer, result.value.file.name, crypto.randomUUID());
+        succeeded.push({ file: result.value.file, buffer: result.value.buffer, parsed });
+      } catch (err) {
+        console.warn(`[tangle] parse ${result.value.file.name}:`, err);
+        failures.push(result.value.file.name);
+      }
+    }
+
+    if (succeeded.length > 0) {
+      const parsedList = succeeded.map((s) => s.parsed);
+      const { workbooks: resolved, duplicateOriginalNames } = resolveImportedWorkbooks(workbooks, parsedList);
       onWorkbooksChange([...workbooks, ...resolved]);
       setNotice(formatDuplicateImportNotice(duplicateOriginalNames));
       setExpanded((prev) => {
@@ -137,15 +163,19 @@ export function FilePanel({ workbooks, onWorkbooksChange, onLocateFile, hiddenFi
         resolved.forEach((wb) => next.add(wb.id));
         return next;
       });
-      // Save raw buffers to IndexedDB
       if (onFileSaved) {
         for (let i = 0; i < resolved.length; i++) {
-          onFileSaved(resolved[i].id, excelFiles[i].name, buffers[i]);
+          onFileSaved(resolved[i].id, succeeded[i].file.name, succeeded[i].buffer);
         }
       }
-    } catch {
-      setNotice(null);
-      setError('Failed to parse one or more files.');
+    }
+
+    if (failures.length > 0) {
+      setError(
+        failures.length === 1
+          ? `Could not load "${failures[0]}".`
+          : `Could not load ${failures.length} files: ${failures.slice(0, 3).join(', ')}${failures.length > 3 ? ', …' : ''}`,
+      );
     }
   }
 
@@ -258,6 +288,18 @@ export function FilePanel({ workbooks, onWorkbooksChange, onLocateFile, hiddenFi
           style={{ color: C.emerald, background: C.emeraldDim, border: `1px solid ${alpha(C.emerald, 25)}` }}>
           {restoredCount} {restoredCount === 1 ? 'file' : 'files'} restored from last session
         </p>
+      )}
+
+      {restoreError && (
+        <div data-testid="restore-error" className="mx-3 mb-2 text-xs px-2 py-1.5 rounded-lg flex items-start gap-2"
+          style={{ color: C.amber, background: C.amberDim, border: `1px solid ${alpha(C.amber, 25)}` }}>
+          <span className="flex-1">{restoreError}</span>
+          {onRestoreErrorDismiss && (
+            <button onClick={onRestoreErrorDismiss} aria-label="Dismiss" style={{ color: C.amber, opacity: 0.7 }}>
+              <IconClose />
+            </button>
+          )}
+        </div>
       )}
 
       {/* Divider + label */}

@@ -1,15 +1,16 @@
 import type { EdgeKind } from '../../lib/graph';
-import { C } from './constants';
+import { C, alpha } from './constants';
+import { edgeAccentColor } from './edge-helpers';
 import { toolbarButtonBaseStyle, toolbarDividerStyle, toolbarRowStyle } from './toolbarStyles';
 
 export type EdgeKindFilterState = Record<EdgeKind, boolean>;
 
 const EDGE_KIND_OPTIONS: { kind: EdgeKind; label: string; color: string }[] = [
-  { kind: 'internal',     label: 'Internal',      color: '#e8445a' },
-  { kind: 'cross-file',   label: 'Cross-file',    color: '#818cf8' },
-  { kind: 'external',     label: 'External',      color: '#f59e0b' },
-  { kind: 'named-range',  label: 'Named Range',   color: '#10b981' },
-  { kind: 'table',        label: 'Table',         color: '#a78bfa' },
+  { kind: 'internal',     label: 'Internal',     color: edgeAccentColor('internal') },
+  { kind: 'cross-file',   label: 'Cross-file',   color: edgeAccentColor('cross-file') },
+  { kind: 'external',     label: 'External',     color: edgeAccentColor('external') },
+  { kind: 'named-range',  label: 'Named Range',  color: edgeAccentColor('named-range') },
+  { kind: 'table',        label: 'Table',        color: edgeAccentColor('table') },
 ];
 
 export function EdgeKindFilterBar({ filter, onFilterChange, showNamedRanges, showTables }: {
@@ -49,7 +50,7 @@ export function EdgeKindFilterBar({ filter, onFilterChange, showNamedRanges, sho
             onClick={() => toggleKind(kind)}
             style={{
               ...toolbarButtonBaseStyle,
-              background: on ? `${color}22` : 'transparent',
+              background: on ? alpha(color, 13) : 'transparent',
               color: on ? color : C.textMuted,
             }}
             onMouseEnter={(e) => { if (!on) (e.currentTarget as HTMLElement).style.color = C.textSecondary; }}
@@ -74,8 +75,8 @@ export function EdgeKindFilterBar({ filter, onFilterChange, showNamedRanges, sho
         onClick={crossOnly ? setAll : setCrossFileOnly}
         style={{
           ...toolbarButtonBaseStyle,
-          background: crossOnly ? '#818cf822' : 'transparent',
-          color: crossOnly ? '#818cf8' : C.textMuted,
+          background: crossOnly ? alpha(edgeAccentColor('cross-file'), 13) : 'transparent',
+          color: crossOnly ? edgeAccentColor('cross-file') : C.textMuted,
         }}
         onMouseEnter={(e) => { if (!crossOnly) (e.currentTarget as HTMLElement).style.color = C.textSecondary; }}
         onMouseLeave={(e) => { if (!crossOnly) (e.currentTarget as HTMLElement).style.color = C.textMuted; }}

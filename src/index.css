@@ -267,7 +267,8 @@ html, body, #root {
   background: transparent !important;
 }
 
-/* Cinematic: starfield deep-space overlay */
+/* Cinematic: deep-space nebula gradient overlay (the actual stars are SVG
+   circles in <StarfieldBackground /> — this just adds atmospheric color). */
 :root[data-theme="cinematic"] .app-shell::before {
   content: "";
   position: absolute;
@@ -290,9 +291,22 @@ html, body, #root {
   box-shadow: 0 16px 40px rgba(0,0,0,0.5) !important;
 }
 
-/* Dense: sharper node corners, tighter focus ring */
+/* Dense: monospace UI text. Sharp corners come from --tg-node-radius / --tg-panel-radius. */
 :root[data-theme="dense"] .react-flow__node { font-family: var(--tg-font-mono); }
 :root[data-theme="dense"] .react-flow__edge-text { font-family: var(--tg-font-mono) !important; }
+
+/* Cinematic: gentle pulse on the selected node */
+@keyframes tg-cinematic-pulse {
+  0%, 100% {
+    filter: drop-shadow(0 0 6px var(--tg-accent-glow)) drop-shadow(0 0 14px var(--tg-accent-glow-faint));
+  }
+  50% {
+    filter: drop-shadow(0 0 12px var(--tg-accent-glow)) drop-shadow(0 0 28px var(--tg-accent-glow-faint));
+  }
+}
+:root[data-theme="cinematic"] .react-flow__node.selected {
+  animation: tg-cinematic-pulse 2.4s ease-in-out infinite;
+}
 
 /* Respect reduced motion for cinematic animations */
 @media (prefers-reduced-motion: reduce) {

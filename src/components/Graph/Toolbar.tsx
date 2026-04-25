@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { LayoutAlgorithm, LayoutDirection } from '../../lib/graph';
 import { C, alpha } from './constants';
+import { useTheme } from '../../themes/useTheme';
 import { toolbarButtonBaseStyle, toolbarDividerStyle, toolbarGroupStyle, toolbarRowStyle } from './toolbarStyles';
 
 // ── Circular Reference Warning Badge ─────────────────────────────────────────
@@ -193,7 +194,7 @@ function ToolbarBtn({
           ? (accentStyle ? C.accentDim : C.accent)
           : 'transparent',
         color: active
-          ? (accentStyle ? C.accent : '#fff')
+          ? (accentStyle ? C.accent : C.textPrimary)
           : C.textSecondary,
         boxShadow: active ? `0 0 10px ${C.accentGlow}` : 'none',
       }}
@@ -241,6 +242,7 @@ export function Toolbar({
   const [menuMode, setMenuMode] = useState<'simple' | 'advanced'>('simple');
   const showReorganizeMenu = !!onResetLayout || !!onRandomizeLayout || !!onApplyLayoutAlgorithm;
   const reorganizeRef = useRef<HTMLDivElement | null>(null);
+  const { theme, cycleTheme } = useTheme();
 
   useEffect(() => {
     if (!reorganizeOpen) return;
@@ -506,6 +508,21 @@ export function Toolbar({
           </ToolbarBtn>
         </>
       )}
+
+      {/* Theme switcher */}
+      <ToolbarDivider />
+      <ToolbarBtn
+        testId="theme-cycle"
+        active={false}
+        onClick={cycleTheme}
+        title={`Theme: ${theme.label} — click or press Ctrl+\\ to cycle`}
+        accentStyle
+      >
+        <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 009.002-5.998z" />
+        </svg>
+        {theme.label}
+      </ToolbarBtn>
     </div>
   );
 }

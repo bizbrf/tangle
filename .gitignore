@@ -35,3 +35,15 @@ test-results/
 
 # GSD planning docs (local only)
 .planning/
+
+# Live status board — local working doc, not part of the repo history
+STATUS.md
+
+# Multi-agent code review workspace
+.review/
+
+# Playwright MCP scratch directory
+.playwright-mcp/
+
+# Stray local screenshots from manual smoke tests
+v2-loaded-*.png

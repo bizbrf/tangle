@@ -1,4 +1,5 @@
-import { C } from './constants';
+import { C, alpha } from './constants';
+import { edgeAccentColor } from './edge-helpers';
 
 function LegendRow({ color, label, isEdge = false }: { color: string; label: string; isEdge?: boolean }) {
   return (
@@ -11,9 +12,9 @@ function LegendRow({ color, label, isEdge = false }: { color: string; label: str
       ) : (
         <div style={{
           width: 10, height: 10, borderRadius: 3, flexShrink: 0,
-          background: `${color}22`,
+          background: alpha(color, 13),
           border: `1.5px solid ${color}`,
-          boxShadow: `0 0 5px ${color}66`,
+          boxShadow: `0 0 5px ${alpha(color, 40)}`,
         }} />
       )}
       <span style={{ fontSize: 11, color: C.textSecondary }}>{label}</span>
@@ -41,11 +42,11 @@ export function Legend({ showNamedRanges, showTables }: { showNamedRanges?: bool
 
       {/* Edges */}
       <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: C.textMuted, marginTop: 4, marginBottom: 1 }}>Edges</div>
-      <LegendRow color="#e8445a" label="Same workbook" isEdge />
-      <LegendRow color="#818cf8" label="Cross-file" isEdge />
-      <LegendRow color="#f59e0b" label="External" isEdge />
-      {showNamedRanges && <LegendRow color="#10b981" label="Named range" isEdge />}
-      {showTables && <LegendRow color={C.violet} label="Table ref" isEdge />}
+      <LegendRow color={edgeAccentColor('internal')} label="Same workbook" isEdge />
+      <LegendRow color={edgeAccentColor('cross-file')} label="Cross-file" isEdge />
+      <LegendRow color={edgeAccentColor('external')} label="External" isEdge />
+      {showNamedRanges && <LegendRow color={edgeAccentColor('named-range')} label="Named range" isEdge />}
+      {showTables && <LegendRow color={edgeAccentColor('table')} label="Table ref" isEdge />}
 
       {/* Hint */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, paddingTop: 6, marginTop: 2, borderTop: `1px solid ${C.border}` }}>

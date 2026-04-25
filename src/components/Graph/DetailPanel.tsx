@@ -3,6 +3,15 @@ import type { Node, Edge } from '@xyflow/react';
 import type { EdgeReference } from '../../types';
 import type { NodeData, EdgeData, EdgeKind } from '../../lib/graph';
 import { C, alpha } from './constants';
+import { edgeAccentColor } from './edge-helpers';
+
+const EDGE_BREAKDOWN_META: { kind: EdgeKind; label: string }[] = [
+  { kind: 'internal',    label: 'Internal' },
+  { kind: 'cross-file',  label: 'Cross-file' },
+  { kind: 'external',    label: 'External' },
+  { kind: 'named-range', label: 'Named Range' },
+  { kind: 'table',       label: 'Table' },
+];
 
 interface DetailPanelProps {
   selectedNodes: Node<NodeData>[];
@@ -111,7 +120,7 @@ export function DetailPanel({ selectedNodes, selectedEdge, onClose, onFocus, foc
   });
 
   return (
-    <div data-testid="detail-panel" style={panelStyle}>
+    <div data-testid="detail-panel" className="glass-panel" style={panelStyle}>
       {/* Header */}
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -236,7 +245,7 @@ export function DetailPanel({ selectedNodes, selectedEdge, onClose, onFocus, foc
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z" />
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 6h.008v.008H6V6z" />
                 </svg>
-                <span style={{ fontFamily: 'monospace', fontSize: 11 }}>{node.data.namedRangeRef}</span>
+                <span style={{ fontFamily: 'var(--tg-font-mono)', fontSize: 11 }}>{node.data.namedRangeRef}</span>
               </div>
             )}
 
@@ -252,7 +261,7 @@ export function DetailPanel({ selectedNodes, selectedEdge, onClose, onFocus, foc
                     {node.data.namedRangeScope === 'sheet' ? 'Sheet-scoped' : 'Workbook-scoped'}
                   </span>
                   {node.data.namedRangeScope === 'sheet' && node.data.namedRangeScopeSheet && (
-                    <span style={{ fontFamily: 'monospace', fontSize: 10, color: C.textSecondary }}>
+                    <span style={{ fontFamily: 'var(--tg-font-mono)', fontSize: 10, color: C.textSecondary }}>
                       {node.data.namedRangeScopeSheet}
                     </span>
                   )}
@@ -265,9 +274,9 @@ export function DetailPanel({ selectedNodes, selectedEdge, onClose, onFocus, foc
                   return (
                     <div style={{ display: 'flex', gap: 6, fontSize: 10, color: C.textMuted }}>
                       {sheet && (
-                        <span>Sheet: <span style={{ fontFamily: 'monospace', color: C.textSecondary }}>{sheet}</span></span>
+                        <span>Sheet: <span style={{ fontFamily: 'var(--tg-font-mono)', color: C.textSecondary }}>{sheet}</span></span>
                       )}
-                      <span>Range: <span style={{ fontFamily: 'monospace', color: C.textSecondary }}>{range}</span></span>
+                      <span>Range: <span style={{ fontFamily: 'var(--tg-font-mono)', color: C.textSecondary }}>{range}</span></span>
                     </div>
                   );
                 })()}
@@ -288,7 +297,7 @@ export function DetailPanel({ selectedNodes, selectedEdge, onClose, onFocus, foc
                     <svg width="12" height="12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M3.375 19.5h17.25m-17.25 0a1.125 1.125 0 01-1.125-1.125M3.375 19.5h7.5c.621 0 1.125-.504 1.125-1.125m-9.75 0V5.625m0 12.75v-1.5c0-.621.504-1.125 1.125-1.125m18.375 2.625V5.625m0 12.75c0 .621-.504 1.125-1.125 1.125m1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125m0 3.75h-7.5A1.125 1.125 0 0112 18.375m9.75-12.75c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125m19.5 0v1.5c0 .621-.504 1.125-1.125 1.125M2.25 5.625v1.5c0 .621.504 1.125 1.125 1.125m0 0h17.25m-17.25 0h7.5c.621 0 1.125.504 1.125 1.125M3.375 8.25c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125m17.25-3.75h-7.5c-.621 0-1.125.504-1.125 1.125m8.625-1.125c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125m-17.25 0h7.5m-7.5 0c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125M12 10.875v-1.5m0 1.5c0 .621-.504 1.125-1.125 1.125M12 10.875c0 .621.504 1.125 1.125 1.125m-2.25 0c.621 0 1.125.504 1.125 1.125M10.875 12h-7.5c-.621 0-1.125.504-1.125 1.125" />
                     </svg>
-                    <span style={{ fontFamily: 'monospace', fontSize: 11 }}>{node.data.tableRef}</span>
+                    <span style={{ fontFamily: 'var(--tg-font-mono)', fontSize: 11 }}>{node.data.tableRef}</span>
                   </div>
                 )}
                 {/* Data range breakdown */}
@@ -299,9 +308,9 @@ export function DetailPanel({ selectedNodes, selectedEdge, onClose, onFocus, foc
                   return (
                     <div style={{ display: 'flex', gap: 6, fontSize: 10, color: C.textMuted }}>
                       {sheet && (
-                        <span>Sheet: <span style={{ fontFamily: 'monospace', color: C.textSecondary }}>{sheet}</span></span>
+                        <span>Sheet: <span style={{ fontFamily: 'var(--tg-font-mono)', color: C.textSecondary }}>{sheet}</span></span>
                       )}
-                      <span>Range: <span style={{ fontFamily: 'monospace', color: C.textSecondary }}>{range}</span></span>
+                      <span>Range: <span style={{ fontFamily: 'var(--tg-font-mono)', color: C.textSecondary }}>{range}</span></span>
                     </div>
                   );
                 })()}
@@ -316,7 +325,7 @@ export function DetailPanel({ selectedNodes, selectedEdge, onClose, onFocus, foc
                         <span key={col} style={{
                           background: `${alpha(C.violet, 8)}`, border: `1px solid ${alpha(C.violet, 20)}`,
                           borderRadius: 4, padding: '2px 6px',
-                          fontSize: 10, fontFamily: 'monospace', color: C.violet,
+                          fontSize: 10, fontFamily: 'var(--tg-font-mono)', color: C.violet,
                         }}>
                           {col}
                         </span>
@@ -407,7 +416,7 @@ export function DetailPanel({ selectedNodes, selectedEdge, onClose, onFocus, foc
                     { label: 'formulas', value: node.data.workload.totalFormulas, color: C.textPrimary },
                     { label: 'within-sheet', value: node.data.workload.withinSheetRefs, color: C.textSecondary },
                     { label: 'cross-sheet', value: node.data.workload.crossSheetRefs, color: C.accent },
-                    { label: 'cross-file', value: node.data.workload.crossFileRefs, color: '#818cf8' },
+                    { label: 'cross-file', value: node.data.workload.crossFileRefs, color: C.indigo },
                   ].map(({ label, value, color }) => (
                     <div key={label} style={{
                       background: C.surface, border: `1px solid ${C.border}`,
@@ -430,23 +439,20 @@ export function DetailPanel({ selectedNodes, selectedEdge, onClose, onFocus, foc
                   Edges by kind
                 </div>
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  {([
-                    { kind: 'internal' as const, label: 'Internal', color: '#e8445a' },
-                    { kind: 'cross-file' as const, label: 'Cross-file', color: '#818cf8' },
-                    { kind: 'external' as const, label: 'External', color: '#f59e0b' },
-                    { kind: 'named-range' as const, label: 'Named Range', color: '#10b981' },
-                    { kind: 'table' as const, label: 'Table', color: '#a78bfa' },
-                  ] as const).filter(({ kind }) => edgeBreakdown[kind] > 0).map(({ kind, label, color }) => (
-                    <div key={kind} style={{
-                      display: 'flex', alignItems: 'center', gap: 5,
-                      background: `${color}11`, border: `1px solid ${color}33`,
-                      borderRadius: 8, padding: '5px 9px',
-                    }}>
-                      <div style={{ width: 6, height: 6, borderRadius: 2, background: color }} />
-                      <span style={{ fontSize: 10, fontWeight: 600, color }}>{edgeBreakdown[kind]}</span>
-                      <span style={{ fontSize: 9, color: C.textMuted }}>{label}</span>
-                    </div>
-                  ))}
+                  {EDGE_BREAKDOWN_META.filter(({ kind }) => edgeBreakdown[kind] > 0).map(({ kind, label }) => {
+                    const color = edgeAccentColor(kind);
+                    return (
+                      <div key={kind} style={{
+                        display: 'flex', alignItems: 'center', gap: 5,
+                        background: alpha(color, 7), border: `1px solid ${alpha(color, 20)}`,
+                        borderRadius: 8, padding: '5px 9px',
+                      }}>
+                        <div style={{ width: 6, height: 6, borderRadius: 2, background: color }} />
+                        <span style={{ fontSize: 10, fontWeight: 600, color }}>{edgeBreakdown[kind]}</span>
+                        <span style={{ fontSize: 9, color: C.textMuted }}>{label}</span>
+                      </div>
+                    );
+                  })}
                 </div>
               </>
             )}
@@ -494,8 +500,8 @@ export function DetailPanel({ selectedNodes, selectedEdge, onClose, onFocus, foc
             {node.data.isExternal && (
               <div style={{
                 display: 'flex', alignItems: 'center', gap: 7,
-                background: 'rgba(245,158,11,0.08)',
-                border: '1px solid rgba(245,158,11,0.2)',
+                background: alpha(C.amber, 8),
+                border: `1px solid ${alpha(C.amber, 20)}`,
                 borderRadius: 8, padding: '8px 10px',
                 fontSize: 11, color: C.amber,
               }}>
@@ -558,7 +564,7 @@ export function DetailPanel({ selectedNodes, selectedEdge, onClose, onFocus, foc
                   borderRadius: 10, padding: '10px 12px',
                 }}>
                   <div style={{
-                    fontFamily: 'monospace', fontSize: 11,
+                    fontFamily: 'var(--tg-font-mono)', fontSize: 11,
                     color: C.accent, wordBreak: 'break-all', lineHeight: 1.5,
                     marginBottom: 6,
                   }}>
@@ -570,8 +576,8 @@ export function DetailPanel({ selectedNodes, selectedEdge, onClose, onFocus, foc
                         <span key={j}>{seg}</span>
                       ) : (
                         <span key={j} style={{
-                          fontFamily: 'monospace',
-                          background: '#1e2535', borderRadius: 4,
+                          fontFamily: 'var(--tg-font-mono)',
+                          background: C.surfaceHi, borderRadius: 4,
                           padding: '2px 5px', color: C.textSecondary,
                         }}>
                           {seg}

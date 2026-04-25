@@ -36,27 +36,20 @@ test('E2E-11: detail panel shows workload metrics', async ({ page }) => {
   await expect(page.getByTestId('workload-metrics')).toContainText('formulas')
 })
 
-// E2E-12: Clicking an edge opens the detail panel in References mode
+// E2E-12: Clicking an edge opens the detail panel in References mode.
+// We click the wide invisible hit path that WeightedEdge renders for hover —
+// it's the only stroke wide enough to hit reliably across browsers.
 test('E2E-12: clicking an edge opens detail panel with References header', async ({ page }) => {
   await uploadFile(page, 'cross-sheet.xlsx')
   await waitForNodes(page)
 
-  // React Flow edges: try clicking the edge label badge (pointerEvents: 'all')
-  // The edge label badge appears for edges with refCount > 1 as a positioned div
-  // For single-ref edges, fall back to clicking the SVG path via .react-flow__edge
-  const edgeLabel = page.locator('.react-flow__edge-label').first()
-  const edgePath = page.locator('.react-flow__edge').first()
+  // Wait for an edge to render, then give layout a frame to settle so React
+  // Flow's click handler is wired up before we hit it.
+  const edgeGroup = page.locator('.react-flow__edge').first()
+  await edgeGroup.waitFor({ state: 'attached' })
+  await page.waitForTimeout(200)
 
-  // Check if edge labels exist (multi-ref edges); otherwise click the SVG edge
-  const labelCount = await edgeLabel.count()
-  if (labelCount > 0) {
-    await edgeLabel.first().click({ force: true })
-  } else {
-    await edgePath.first().click({ force: true })
-  }
-
-  // Detail panel should show References mode
-  await waitForDetailPanel(page)
+  await waitForDetailPanel(page, edgeGroup)
   await expect(page.getByTestId('detail-panel-title')).toContainText('References')
 })
 

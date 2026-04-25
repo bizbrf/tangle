@@ -65,12 +65,15 @@ function WeightedEdgeImpl({
 
   return (
     <>
-      {/* Invisible wide hit area for hover detection */}
+      {/* Invisible wide hit area for hover + click. `pointer-events="stroke"`
+          makes the transparent stroke hit-testable across browsers — without
+          it, Chromium/Firefox on Linux occasionally drop clicks on the edge. */}
       <path
         d={edgePath}
         fill="none"
         stroke="transparent"
         strokeWidth={20}
+        pointerEvents="stroke"
         onMouseEnter={onEnter}
         onMouseLeave={onLeave}
         style={{ cursor: 'default' }}

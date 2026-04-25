@@ -45,5 +45,7 @@ STATUS.md
 # Playwright MCP scratch directory
 .playwright-mcp/
 
-# Stray local screenshots from manual smoke tests
-v2-loaded-*.png
+# Stray local screenshots from manual smoke tests (project-root only —
+# committed assets live in screenshots/)
+/v2-*.png
+/playwright-report/
